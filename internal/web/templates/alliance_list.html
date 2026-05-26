@@ -1,0 +1,42 @@
+{{define "content"}}
+<h2>Alliances</h2>
+{{if .Current}}
+  <p>You are in <a href="/alliance/{{.Current.ID}}"><span class="pill">{{.Current.Tag}}</span> {{.Current.Name}}</a>.</p>
+{{else}}
+  <p class="muted">You are not in an alliance. Join one below, or <a href="#create">found a new one</a>.</p>
+{{end}}
+
+{{if .Alliances}}
+<table>
+  <thead><tr><th>tag</th><th>name</th><th>members</th><th>founded</th></tr></thead>
+  <tbody>
+  {{range .Alliances}}
+    <tr>
+      <td><span class="pill">{{.Tag}}</span></td>
+      <td><a href="/alliance/{{.ID}}">{{.Name}}</a></td>
+      <td>{{.MemberCount}}</td>
+      <td class="muted">{{.CreatedAt.Format "2006-01-02"}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="muted">(no alliances yet - found the first)</p>
+{{end}}
+
+<h2 id="create">Found a new alliance</h2>
+{{if .Current}}
+<p class="muted">You are already in an alliance. Leave it first to found another.</p>
+{{else}}
+<form method="post" action="/alliance">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <label for="tag">Tag (3-6 uppercase letters or digits)</label>
+  <input id="tag" name="tag" type="text" required minlength="3" maxlength="6" pattern="[A-Z0-9]+" value="{{.Form.tag}}">
+  <label for="name">Name (3-32 chars)</label>
+  <input id="name" name="name" type="text" required minlength="3" maxlength="32" value="{{.Form.name}}">
+  <label for="description">Description (optional, max 1024 chars)</label>
+  <textarea id="description" name="description" maxlength="1024">{{.Form.description}}</textarea>
+  <button type="submit">Found alliance</button>
+</form>
+{{end}}
+{{end}}

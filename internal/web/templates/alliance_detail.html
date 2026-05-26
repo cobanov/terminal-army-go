@@ -1,0 +1,32 @@
+{{define "content"}}
+<h2><span class="pill">{{.Alliance.Tag}}</span> {{.Alliance.Name}}</h2>
+<p class="muted">Founded {{.Alliance.CreatedAt.Format "2006-01-02"}} - {{.Alliance.MemberCount}} member{{if ne .Alliance.MemberCount 1}}s{{end}}</p>
+
+{{if .Alliance.Description}}
+<pre>{{.Alliance.Description}}</pre>
+{{else}}
+<p class="muted">(no description)</p>
+{{end}}
+
+<h2>Membership</h2>
+{{if .IsMember}}
+  <p>You are a member of this alliance.</p>
+  {{if .IsFounder}}
+    <p class="muted">You are the founder. You cannot leave while other members remain - transfer leadership or wait for them to leave first.</p>
+  {{else}}
+    <form method="post" action="/alliance/{{.Alliance.ID}}/leave" onsubmit="return confirm('Leave {{.Alliance.Tag}}?');">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button type="submit">Leave alliance</button>
+    </form>
+  {{end}}
+{{else if .Current}}
+  <p class="muted">You are already in <a href="/alliance/{{.Current.ID}}"><span class="pill">{{.Current.Tag}}</span> {{.Current.Name}}</a>. Leave that alliance before joining another.</p>
+{{else}}
+  <form method="post" action="/alliance/{{.Alliance.ID}}/join">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit">Join {{.Alliance.Tag}}</button>
+  </form>
+{{end}}
+
+<p style="margin-top:2rem"><a href="/alliance">&larr; back to alliances</a></p>
+{{end}}

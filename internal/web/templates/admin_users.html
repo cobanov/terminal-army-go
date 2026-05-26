@@ -1,0 +1,65 @@
+{{define "content"}}
+<h2>admin // users</h2>
+
+<p class="muted">
+  Promote grants the <code>admin</code> role; demote restores
+  <code>player</code>. You cannot demote your own account from this page
+  (use the <code>tarmy admin demote</code> CLI if you really mean it).
+</p>
+
+<p><a href="/admin">&larr; back to dashboard</a></p>
+
+{{if .Users}}
+<table>
+  <thead>
+    <tr>
+      <th>id</th><th>username</th><th>email</th>
+      <th>role</th><th>joined</th><th>last seen</th><th>action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Users}}
+    <tr>
+      <td>{{.ID}}</td>
+      <td>{{.Username}}{{if .IsSelf}} <span class="pill">you</span>{{end}}</td>
+      <td>{{.Email}}</td>
+      <td>{{if eq .Role "admin"}}<span class="pill">admin</span>{{else}}{{.Role}}{{end}}</td>
+      <td>{{.Joined}}</td>
+      <td>{{.LastSeen}}</td>
+      <td>
+        <form method="post" action="/admin/users" style="margin:0;">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="user_id" value="{{.ID}}">
+          {{if eq .Role "admin"}}
+            {{if .IsSelf}}
+              <span class="muted">self</span>
+            {{else}}
+              <button type="submit" name="action" value="demote">demote</button>
+            {{end}}
+          {{else}}
+            <button type="submit" name="action" value="promote">promote</button>
+          {{end}}
+        </form>
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="muted">no users on this page</p>
+{{end}}
+
+<div class="row" style="margin-top:1rem;">
+  {{if .UserPage.HasPrev}}
+    <a href="/admin/users?offset={{.UserPage.PrevOffset}}">&larr; prev</a>
+  {{else}}
+    <span class="muted">&larr; prev</span>
+  {{end}}
+  <span class="muted">offset {{.UserPage.Offset}} (page size {{.UserPage.Limit}})</span>
+  {{if .UserPage.HasNext}}
+    <a href="/admin/users?offset={{.UserPage.NextOffset}}">next &rarr;</a>
+  {{else}}
+    <span class="muted">next &rarr;</span>
+  {{end}}
+</div>
+{{end}}

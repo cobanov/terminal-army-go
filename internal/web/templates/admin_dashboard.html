@@ -1,0 +1,62 @@
+{{define "content"}}
+<h2>admin // overview</h2>
+
+<p class="muted">
+  Operator-only view. Counters refresh on page load; long-running stats live
+  in the <code>tarmy admin stats</code> CLI.
+</p>
+
+{{if .Stats}}
+<table>
+  <thead><tr><th>metric</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>universes</td><td>{{.Stats.Universes}}</td></tr>
+    <tr><td>players</td><td>{{.Stats.Players}}</td></tr>
+    <tr><td>planets</td><td>{{.Stats.Planets}}</td></tr>
+    <tr><td>online players (presence)</td><td>{{.Stats.OnlinePlayers}}</td></tr>
+    <tr><td>fleets in flight</td><td>{{.Stats.FleetsInFlight}}</td></tr>
+    <tr><td>active device sessions</td><td>{{.ActiveSessions}}</td></tr>
+    <tr><td>uptime (seconds)</td><td>{{.Stats.UptimeSeconds}}</td></tr>
+  </tbody>
+</table>
+{{end}}
+
+<h2>universes</h2>
+{{if .Universes}}
+<table>
+  <thead>
+    <tr>
+      <th>id</th><th>name</th><th>g x s</th>
+      <th>speed (eco / fleet / res)</th><th>players</th><th>created</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Universes}}
+    <tr>
+      <td>{{.ID}}</td>
+      <td>{{.Name}}</td>
+      <td>{{.GalaxiesCount}} x {{.SystemsCount}}</td>
+      <td>{{.SpeedEconomy}} / {{.SpeedFleet}} / {{.SpeedResearch}}</td>
+      <td>{{.PlayerCount}}</td>
+      <td>{{.CreatedAt.Format "2006-01-02"}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="muted">no universes yet, run <code>tarmy admin seed-universe</code></p>
+{{end}}
+
+<h2>quick links</h2>
+<ul>
+  <li><a href="/admin/users">manage users</a></li>
+  <li><a href="/alliance">alliance lobby</a></li>
+</ul>
+
+<h2>cli reference</h2>
+<pre>tarmy admin seed-universe
+tarmy admin promote &lt;username&gt;
+tarmy admin demote &lt;username&gt;
+tarmy admin list-users --limit 100 --offset 0
+tarmy admin stats</pre>
+{{end}}

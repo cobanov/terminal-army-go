@@ -1,0 +1,29 @@
+# Binaries
+/tarmy
+/bin/
+/dist/
+
+# Local env
+.env
+.env.local
+*.local
+
+# Test artifacts
+coverage.out
+coverage.html
+*.test
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Build cache
+.cache/

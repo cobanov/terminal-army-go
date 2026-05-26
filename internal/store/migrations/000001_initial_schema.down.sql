@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS alliance_join_requests;
+DROP TABLE IF EXISTS alliance_members;
+DROP TABLE IF EXISTS alliances;
+DROP TABLE IF EXISTS reports;
+DROP TABLE IF EXISTS fleet_ships;
+DROP TABLE IF EXISTS fleets;
+DROP TABLE IF EXISTS planet_defenses;
+DROP TABLE IF EXISTS planet_ships;
+DROP TABLE IF EXISTS device_sessions;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS build_queue;
+DROP TABLE IF EXISTS researches;
+DROP TABLE IF EXISTS buildings;
+DROP TABLE IF EXISTS planets;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS universes;

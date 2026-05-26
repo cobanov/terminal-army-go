@@ -1,0 +1,18 @@
+{{define "content"}}
+<p>OGame, rewritten as a Go server with a terminal client. The galaxy is run from the command line; this web surface exists for sign-up and alliance management.</p>
+
+<h2>Get the client</h2>
+<pre>$ go install github.com/cobanov/terminal-army-go/cmd/tarmy@latest
+$ tarmy play --server {{.PublicURL}}</pre>
+
+<h2>Quick start</h2>
+<ol>
+  <li><a href="/signup">Sign up</a> for an account.</li>
+  <li>Pick a universe and a starting planet from the TUI.</li>
+  <li>Build mines, research tech, dispatch fleets.</li>
+  <li><a href="/alliance">Join or found an alliance</a> with friends.</li>
+</ol>
+
+<h2>Status</h2>
+<p class="muted">Server time: {{.Now.Format "2006-01-02 15:04 UTC"}}</p>
+{{end}}

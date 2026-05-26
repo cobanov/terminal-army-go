@@ -1,0 +1,93 @@
+# docker-compose.yml -- single-host deploy for terminal.army (Go rewrite).
+#
+# What this stack runs:
+#   - postgres 16: the only persistent dependency
+#   - tarmy-migrate: one-shot migration applier, exits after success
+#   - tarmy: the long-running HTTP/WebSocket server (and queue scheduler)
+#
+# Bring it up:
+#   cp .env.example .env && $EDITOR .env        # set TARMY_JWT_SECRET
+#   docker compose up -d --build
+#
+# After first boot you typically want to seed the default universe:
+#   docker compose exec tarmy tarmy admin seed-universe
+#
+# Pinned image tags ensure reproducible deploys; bump intentionally.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tarmy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tarmy}
+      POSTGRES_DB: ${POSTGRES_DB:-tarmy}
+    volumes:
+      - tarmy_pgdata:/var/lib/postgresql/data
+    # Keep Postgres off the public interface; tarmy reaches it over the
+    # internal compose network. Uncomment the ports block only for local
+    # psql / GUI access.
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tarmy} -d ${POSTGRES_DB:-tarmy}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  tarmy-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tarmy:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-tarmy}:${POSTGRES_PASSWORD:-tarmy}@postgres:5432/${POSTGRES_DB:-tarmy}?sslmode=disable
+      # JWT secret must be set for `tarmy migrate up` because the binary
+      # validates config at startup. Migrations themselves do not need it.
+      TARMY_JWT_SECRET: ${TARMY_JWT_SECRET:?TARMY_JWT_SECRET is required (set in .env)}
+    command: ["migrate", "up"]
+    restart: "no"
+
+  tarmy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tarmy:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      tarmy-migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-tarmy}:${POSTGRES_PASSWORD:-tarmy}@postgres:5432/${POSTGRES_DB:-tarmy}?sslmode=disable
+      TARMY_HTTP_ADDR: 0.0.0.0:8080
+      TARMY_PUBLIC_URL: ${TARMY_PUBLIC_URL:-http://localhost:8080}
+      TARMY_JWT_SECRET: ${TARMY_JWT_SECRET:?TARMY_JWT_SECRET is required (set in .env)}
+      TARMY_JWT_TTL_HOURS: ${TARMY_JWT_TTL_HOURS:-168}
+      TARMY_BCRYPT_COST: ${TARMY_BCRYPT_COST:-12}
+      TARMY_SCHEDULER_INTERVAL_SECONDS: ${TARMY_SCHEDULER_INTERVAL_SECONDS:-5}
+      TARMY_LOG_LEVEL: ${TARMY_LOG_LEVEL:-info}
+      TARMY_LOG_FORMAT: ${TARMY_LOG_FORMAT:-json}
+      TARMY_DEFAULT_UNIVERSE_NAME: ${TARMY_DEFAULT_UNIVERSE_NAME:-Genesis}
+      TARMY_DEFAULT_UNIVERSE_GALAXIES: ${TARMY_DEFAULT_UNIVERSE_GALAXIES:-9}
+      TARMY_DEFAULT_UNIVERSE_SYSTEMS: ${TARMY_DEFAULT_UNIVERSE_SYSTEMS:-499}
+      TARMY_DEFAULT_UNIVERSE_SPEED_ECONOMY: ${TARMY_DEFAULT_UNIVERSE_SPEED_ECONOMY:-1}
+      TARMY_DEFAULT_UNIVERSE_SPEED_FLEET: ${TARMY_DEFAULT_UNIVERSE_SPEED_FLEET:-1}
+      TARMY_DEFAULT_UNIVERSE_SPEED_RESEARCH: ${TARMY_DEFAULT_UNIVERSE_SPEED_RESEARCH:-1}
+    ports:
+      - "${TARMY_HTTP_PORT:-8080}:8080"
+    restart: unless-stopped
+    # Distroless has no shell; use the built-in /healthz route via the
+    # binary itself. Compose 2 supports the `start_period` option.
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/tarmy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  tarmy_pgdata:
