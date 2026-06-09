@@ -1,4 +1,4 @@
-// Package httpapi wires the HTTP/WebSocket server, scheduler, and graceful shutdown.
+// Package httpapi wires the HTTP server, scheduler, and graceful shutdown.
 package httpapi
 
 import (
