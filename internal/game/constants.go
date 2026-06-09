@@ -250,7 +250,6 @@ const (
 	StartingCrystal     = 500
 	StartingDeuterium   = 0
 	StartingFieldsUsed  = 0
-	SolarSatelliteMax   = 65
 	BuildQueueMaxActive = 5
 )
 
