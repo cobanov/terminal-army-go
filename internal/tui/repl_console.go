@@ -5,9 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"math"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -197,32 +201,21 @@ func (m consoleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m consoleModel) View() string {
-	w := max(72, m.width)
-	h := max(24, m.height)
-	sideW := 26
-	mainW := max(40, w-sideW-4)
-	logH := max(9, h-9)
+	w := max(96, m.width)
+	h := max(30, m.height)
+	leftW := 26
+	rightW := 31
+	gap := 1
+	mainW := max(50, w-leftW-rightW-(gap*2))
+	bodyH := max(18, h-5)
+	mainH := bodyH
 
-	header := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		titleStyle().Render("// terminal.army"),
-		" ",
-		tagStyle().Render(m.session.client.BaseURL()),
-		" ",
-		mutedStyle().Render("user "+m.session.user.Username),
-	)
-	if m.busy {
-		header += " " + warnStyle().Render(m.status)
-	}
-
-	main := panelStyle(mainW, logH).Render(m.renderLog(mainW-4, logH-2))
-	side := panelStyle(sideW, logH).Render(m.renderNav(sideW - 4))
-	body := lipgloss.JoinHorizontal(lipgloss.Top, main, "  ", side)
-
-	suggest := m.renderSuggestions(mainW)
-	prompt := inputPanelStyle(w - 2).Render(m.input.View())
-	footer := mutedStyle().Render("Tab complete  Up/Down select/history  Esc hide  Ctrl+L clear  Ctrl+C quit")
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, suggest, prompt, footer)
+	top := m.renderTopBar(w)
+	left := sideRailStyle(leftW, bodyH).Render(m.renderNav(leftW - 4))
+	main := centerStyle(mainW, mainH).Render(m.renderCenter(mainW-2, mainH-2))
+	right := sideRailStyle(rightW, bodyH).Render(m.renderRight(rightW - 4))
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), main, strings.Repeat(" ", gap), right)
+	return lipgloss.JoinVertical(lipgloss.Left, top, body)
 }
 
 func (m *consoleModel) runCommand(line string) tea.Cmd {
@@ -268,50 +261,169 @@ func (m consoleModel) renderLog(width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
+func (m consoleModel) renderTopBar(width int) string {
+	p := m.currentPlanet()
+	left := accentOrange().Render(m.session.user.Username)
+	mid := mutedStyle().Render("no planet")
+	res := ""
+	if p != nil {
+		left += mutedStyle().Render(" · U#1 · ")
+		left += accentOrange().Render(p.Name)
+		left += fmt.Sprintf(" %s", accentYellow().Render(fmt.Sprintf("%d:%d:%d", p.Galaxy, p.System, p.Position)))
+		mid = mutedStyle().Render(fmt.Sprintf("fields %d/%d · temp %d/%d°C", p.FieldsUsed, p.FieldsTotal, p.TempMin, p.TempMax))
+		res = fmt.Sprintf("M %s   C %s   D %s   E %s",
+			accentYellow().Render(formatCompact(p.Metal)),
+			accentCyan().Render(formatCompact(p.Crystal)),
+			accentMagenta().Render(formatCompact(p.Deuterium)),
+			energyStyle(p.EnergyProduced-p.EnergyUsed).Render(fmt.Sprintf("%+d", p.EnergyProduced-p.EnergyUsed)),
+		)
+	}
+	right := accentGreen().Render(time.Now().Format("15:04:05")) + mutedStyle().Render("  ● 1 online   🛡 0 def")
+	line1 := fitColumns(width, left+"  "+mid, right)
+	line2 := fitColumns(width, res, mutedStyle().Render("▣ inbox"))
+	return topBarStyle(width).Render(line1 + "\n" + line2)
+}
+
+func (m consoleModel) renderCenter(width, height int) string {
+	planetH := min(10, max(7, height/4))
+	suggestH := 8
+	inputH := 1
+	logH := max(6, height-planetH-suggestH-inputH-4)
+	planet := m.renderPlanetCard(width, planetH)
+	log := m.renderCommandArea(width, logH)
+	suggest := m.renderSuggestions(width)
+	input := inputLineStyle(width).Render(m.input.View())
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		planet,
+		rule(width, "─", "238"),
+		log,
+		rule(width, "─", "178"),
+		suggest,
+		input,
+	)
+}
+
+func (m consoleModel) renderPlanetCard(width, height int) string {
+	p := m.currentPlanet()
+	if p == nil {
+		return mutedStyle().Render("no planet")
+	}
+	globe := renderPlanetGlobe(p.Code, p.Position, min(18, max(12, width/5)), min(9, max(7, height-1)))
+	rows := []string{
+		accentOrange().Render(strings.ToUpper(p.Name) + " " + fmt.Sprintf("%d:%d:%d", p.Galaxy, p.System, p.Position)),
+		mutedStyle().Render(fmt.Sprintf("fields %d/%d   temp %d/%d°C", p.FieldsUsed, p.FieldsTotal, p.TempMin, p.TempMax)),
+		"",
+		fmt.Sprintf("metal     %s   %s", accentYellow().Render(formatCompact(p.Metal)), mutedStyle().Render("+?/h")),
+		fmt.Sprintf("crystal   %s   %s", accentCyan().Render(formatCompact(p.Crystal)), mutedStyle().Render("+?/h")),
+		fmt.Sprintf("deut      %s   %s", accentMagenta().Render(formatCompact(p.Deuterium)), mutedStyle().Render("+?/h")),
+		"",
+		fmt.Sprintf("energy    prod %d / used %d    bal %s", p.EnergyProduced, p.EnergyUsed, energyStyle(p.EnergyProduced-p.EnergyUsed).Render(fmt.Sprintf("%+d", p.EnergyProduced-p.EnergyUsed))),
+	}
+	infoW := max(24, width-lipgloss.Width(globe)-4)
+	info := clampBlock(strings.Join(rows, "\n"), infoW, height)
+	return lipgloss.JoinHorizontal(lipgloss.Top, globe, "  ", info)
+}
+
+func (m consoleModel) renderCommandArea(width, height int) string {
+	title := accentOrange().Render("terminal.army")
+	help := mutedStyle().Render("Type / to see commands, Tab to autocomplete, Enter to run.")
+	body := m.renderLog(width, max(1, height-2))
+	return clampBlock(title+"\n"+help+"\n"+body, width, height)
+}
+
 func (m consoleModel) renderNav(width int) string {
 	sections := []struct {
 		title string
 		cmds  []string
+		style lipgloss.Style
 	}{
-		{"PLANET", []string{"/planet", "/resources", "/upgrade", "/queue", "/switch"}},
-		{"RESEARCH", []string{"/research", "/info"}},
-		{"FLEET", []string{"/ships", "/defense", "/fleet", "/attack", "/transport", "/espionage"}},
-		{"GALAXY", []string{"/galaxy", "/leaderboard"}},
-		{"SOCIAL", []string{"/msg", "/messages", "/alliance"}},
-		{"SYSTEM", []string{"/quest", "/refresh", "/logout", "/q"}},
+		{"PLANET", []string{"/planet", "/resources", "/facilities", "/upgrade", "/queue", "/cancel"}, accentGreen()},
+		{"RESEARCH", []string{"/research", "/tree"}, accentMagenta()},
+		{"FLEET", []string{"/ships", "/defense", "/fleet", "/espionage", "/attack", "/transport", "/reports"}, accentCyan()},
+		{"GALAXY", []string{"/galaxy", "/planets", "/switch", "/logs"}, accentViolet()},
+		{"SOCIAL", []string{"/msg", "/inbox"}, accentOrange()},
+		{"STANDINGS", []string{"/leaderboard", "/alliance"}, accentOrange()},
+		{"HELP", []string{"/help", "/quest", "/info", "/options"}, mutedStyle()},
 	}
 	var b strings.Builder
 	for i, section := range sections {
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString(accentStyle().Render(section.title))
+		b.WriteString(accentOrange().Render(section.title))
 		b.WriteByte('\n')
 		for _, cmd := range section.cmds {
-			b.WriteString(clampLine("  "+cmd, width))
+			b.WriteString(section.style.Render(clampLine("  "+cmd, width)))
 			b.WriteByte('\n')
 		}
+	}
+	b.WriteString("\n")
+	b.WriteString(accentOrange().Render("HOTKEYS"))
+	b.WriteString("\n")
+	for _, row := range []string{"Tab    complete", "↑ ↓    history", "Esc    hide popup", "Ctrl+L clear log", "Ctrl+C quit"} {
+		b.WriteString(mutedStyle().Render("  " + clampLine(row, width-2)))
+		b.WriteByte('\n')
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
 func (m consoleModel) renderSuggestions(width int) string {
-	if len(m.suggestions) == 0 {
-		return mutedStyle().Render(" ")
+	items := m.suggestions
+	if len(items) == 0 {
+		items = commandSuggestions("/")
 	}
-	maxRows := min(7, len(m.suggestions))
+	maxRows := min(7, len(items))
 	rows := make([]string, 0, maxRows)
 	for i := 0; i < maxRows; i++ {
-		s := m.suggestions[i]
-		label := fmt.Sprintf("%-28s %s", s.label, s.desc)
-		label = clampLine(label, width-6)
-		if i == m.selected {
-			rows = append(rows, selectedStyle().Render(label))
+		s := items[i]
+		raw := clampLine(fmt.Sprintf("%-28s  %s", s.label, s.desc), width-3)
+		label := accentCyan().Render(fmt.Sprintf("%-28s", s.label)) + "  " + mutedStyle().Render(s.desc)
+		label = clampLine(label, width-3)
+		if len(m.suggestions) > 0 && i == m.selected {
+			rows = append(rows, selectedStyle().Render(raw))
 			continue
 		}
-		rows = append(rows, "  "+mutedStyle().Render(label))
+		rows = append(rows, label)
 	}
-	return suggestionsStyle(width - 2).Render(strings.Join(rows, "\n"))
+	return clampBlock(strings.Join(rows, "\n"), width, 7)
+}
+
+func (m consoleModel) renderRight(width int) string {
+	p := m.currentPlanet()
+	var b strings.Builder
+	b.WriteString(accentOrange().Render("PLANETS"))
+	b.WriteByte('\n')
+	for i, planet := range m.session.planets {
+		prefix := "  "
+		if p != nil && planet.ID == p.ID {
+			prefix = "▸ "
+		}
+		row := fmt.Sprintf("%s%d. %s#%s", prefix, i+1, planet.Code, planet.Name)
+		b.WriteString(accentOrange().Render(clampLine(row, width)))
+		b.WriteByte('\n')
+		b.WriteString(mutedStyle().Render(clampLine(fmt.Sprintf("     %d:%d:%d   M %s", planet.Galaxy, planet.System, planet.Position, formatCompact(planet.Metal)), width)))
+		b.WriteByte('\n')
+	}
+	sections := []struct {
+		title string
+		body  []string
+	}{
+		{"QUEUES (0/5)", []string{"empty"}},
+		{"MISSIONS (0)", []string{"no active fleets"}},
+		{"QUESTS [10/15]", []string{"▸ Send your first fleet"}},
+		{"MESSAGES (none)", nil},
+	}
+	for _, section := range sections {
+		b.WriteString("\n")
+		b.WriteString(accentOrange().Render(section.title))
+		b.WriteByte('\n')
+		for _, row := range section.body {
+			b.WriteString(mutedStyle().Render("  " + clampLine(row, width-2)))
+			b.WriteByte('\n')
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func (m *consoleModel) refreshSuggestions() {
@@ -524,6 +636,108 @@ func prefixSuggestions(cmd, prefix string, specs []completion) []completion {
 	return out
 }
 
+func (m consoleModel) currentPlanet() *svc.Planet {
+	if len(m.session.planets) == 0 {
+		return nil
+	}
+	if m.session.currentIndex < 0 || m.session.currentIndex >= len(m.session.planets) {
+		return &m.session.planets[0]
+	}
+	return &m.session.planets[m.session.currentIndex]
+}
+
+func formatCompact(v float64) string {
+	n := int64(v)
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	case n >= 10_000:
+		return fmt.Sprintf("%.1fk", float64(n)/1_000)
+	default:
+		return strconv.FormatInt(n, 10)
+	}
+}
+
+func fitColumns(width int, left, right string) string {
+	leftW := lipgloss.Width(left)
+	rightW := lipgloss.Width(right)
+	if leftW+rightW+1 >= width {
+		return clampLine(left+" "+right, width)
+	}
+	return left + strings.Repeat(" ", width-leftW-rightW) + right
+}
+
+func rule(width int, ch, color string) string {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(strings.Repeat(ch, max(1, width)))
+}
+
+func clampBlock(s string, width, height int) string {
+	if height <= 0 {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	for i := range lines {
+		lines[i] = clampLine(lines[i], width)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderPlanetGlobe(seed string, position, globeW, globeH int) string {
+	if globeW < 8 {
+		globeW = 8
+	}
+	if globeH < 5 {
+		globeH = 5
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(seed))
+	rng := rand.New(rand.NewSource(int64(h.Sum64())))
+	light := rng.Float64()*0.6 - 0.3
+	threshold := rng.Float64()*0.8 - 0.2
+	chars := []rune(" ·░▒▓█")
+	style := planetStyle(position)
+	var b strings.Builder
+	halfW := float64(globeW) / 2
+	halfH := float64(globeH) / 2
+	for y := 0; y < globeH; y++ {
+		ny := (float64(y) + 0.5 - halfH) / halfH
+		for x := 0; x < globeW; x++ {
+			nx := (float64(x) + 0.5 - halfW) / halfW
+			if nx*nx+ny*ny > 1 {
+				b.WriteRune(' ')
+				continue
+			}
+			nz := math.Sqrt(maxFloat(0, 1-nx*nx-ny*ny))
+			lit := maxFloat(0.16, nx*math.Cos(light)+nz*math.Sin(light)+0.45)
+			noise := math.Sin(nx*8+float64(h.Sum64()%17)) + math.Cos(ny*11+float64(h.Sum64()%23))
+			if noise > threshold {
+				lit *= 1.15
+			} else {
+				lit *= 0.55
+			}
+			idx := min(len(chars)-1, max(1, int(lit*float64(len(chars)-1))))
+			b.WriteString(style.Render(string(chars[idx])))
+		}
+		if y < globeH-1 {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func catalogKeys(rows []CatalogItem) []string {
 	keys := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -543,6 +757,30 @@ func allCatalogKeys() []string {
 
 func titleStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220"))
+}
+
+func accentOrange() lipgloss.Style {
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+}
+
+func accentYellow() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+}
+
+func accentGreen() lipgloss.Style {
+	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("118"))
+}
+
+func accentCyan() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("45"))
+}
+
+func accentMagenta() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("198"))
+}
+
+func accentViolet() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
 }
 
 func accentStyle() lipgloss.Style {
@@ -570,7 +808,31 @@ func commandStyle() lipgloss.Style {
 }
 
 func selectedStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("111")).Bold(true).Padding(0, 1)
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("178")).Bold(true).Padding(0, 1)
+}
+
+func topBarStyle(width int) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Width(width).
+		Border(lipgloss.NormalBorder(), false, false, true, false).
+		BorderForeground(lipgloss.Color("238")).
+		Padding(0, 1)
+}
+
+func sideRailStyle(width, height int) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Width(width).
+		Height(height).
+		Border(lipgloss.NormalBorder(), false, true, false, false).
+		BorderForeground(lipgloss.Color("238")).
+		Padding(0, 1)
+}
+
+func centerStyle(width, height int) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Width(width).
+		Height(height).
+		Padding(0, 0)
 }
 
 func panelStyle(width, height int) lipgloss.Style {
@@ -590,12 +852,39 @@ func inputPanelStyle(width int) lipgloss.Style {
 		Padding(0, 1)
 }
 
+func inputLineStyle(width int) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Width(width).
+		Foreground(lipgloss.Color("250")).
+		Padding(0, 1)
+}
+
 func suggestionsStyle(width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(width).
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("59")).
 		Padding(0, 1)
+}
+
+func energyStyle(balance int) lipgloss.Style {
+	if balance >= 0 {
+		return accentGreen()
+	}
+	return errorStyle()
+}
+
+func planetStyle(position int) lipgloss.Style {
+	switch {
+	case position <= 3:
+		return accentMagenta()
+	case position <= 6:
+		return accentYellow()
+	case position <= 10:
+		return accentCyan()
+	default:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("159"))
+	}
 }
 
 func clampLine(s string, width int) string {

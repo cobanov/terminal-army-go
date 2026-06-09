@@ -1,9 +1,14 @@
 package tui
 
 import (
+	"context"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/cobanov/terminal-army-go/internal/svc"
+	"github.com/cobanov/terminal-army-go/internal/tui/client"
 )
 
 func TestParseCoord(t *testing.T) {
@@ -71,4 +76,45 @@ func TestSuggestionsForInput(t *testing.T) {
 			t.Fatalf("suggestionsForInput(/switch home) = %#v", got)
 		}
 	})
+}
+
+func TestConsoleCockpitViewContainsMajorRegions(t *testing.T) {
+	now := time.Now()
+	input := textinput.New()
+	input.Prompt = "tarmy> "
+	model := consoleModel{
+		ctx:   context.Background(),
+		input: input,
+		session: &replSession{
+			client: client.New("https://go.terminal.army"),
+			user:   &svc.User{Username: "cobanov", Email: "cobanov@example.test", Role: "player"},
+			planets: []svc.Planet{{
+				ID:                     1,
+				Code:                   "3LS5",
+				Name:                   "Homeworld",
+				Galaxy:                 6,
+				System:                 262,
+				Position:               11,
+				FieldsUsed:             37,
+				FieldsTotal:            138,
+				TempMin:                -28,
+				TempMax:                12,
+				Metal:                  209000,
+				Crystal:                178700,
+				Deuterium:              101900,
+				EnergyProduced:         753,
+				EnergyUsed:             554,
+				ResourcesLastUpdatedAt: now,
+			}},
+		},
+		width:  140,
+		height: 42,
+		log:    []string{"resources", "metal_mine 11"},
+	}
+	view := model.View()
+	for _, want := range []string{"PLANET", "RESEARCH", "FLEET", "PLANETS", "QUEUES", "terminal.army", "Homeworld", "M 209.0k"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("cockpit view missing %q\n%s", want, view)
+		}
+	}
 }
