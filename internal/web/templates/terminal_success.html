@@ -1,4 +1,10 @@
 {{define "content"}}
-<h2>Signed in</h2>
-<p>Return to your terminal. The CLI will pick up this session automatically.</p>
+<div class="login-container">
+  {{template "logo" .}}
+  <div class="ok-banner">Signed in.</div>
+  <div class="card">
+    <h2 class="card-title">Terminal ready <small>session linked</small></h2>
+    <p>Return to your terminal. The CLI will pick up this session automatically.</p>
+  </div>
+</div>
 {{end}}

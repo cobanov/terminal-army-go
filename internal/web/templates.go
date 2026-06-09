@@ -11,28 +11,30 @@ import (
 	"github.com/cobanov/terminal-army-go/internal/svc"
 )
 
-//go:embed templates/*.html
+//go:embed templates/*.html static/*
 var templateFS embed.FS
 
 // viewData is the canonical envelope passed to every template render. Keeping
 // one shape lets the shared layout always find Title, User, CSRF, Flash, and
 // Error without per-page glue.
 type viewData struct {
-	Title     string
-	User      *svc.User
-	CSRF      string
-	Flash     string
-	Error     string
-	PublicURL string
-	Now       time.Time
+	Title      string
+	User       *svc.User
+	CSRF       string
+	Flash      string
+	Error      string
+	PublicURL  string
+	Now        time.Time
+	ShellClass string
 
 	// page-specific payloads
-	Form      map[string]string
-	Alliances []svc.Alliance
-	Alliance  *svc.Alliance
-	Current   *svc.Alliance
-	IsMember  bool
-	IsFounder bool
+	Form        map[string]string
+	Alliances   []svc.Alliance
+	Alliance    *svc.Alliance
+	Current     *svc.Alliance
+	IsMember    bool
+	IsFounder   bool
+	Leaderboard []svc.LeaderboardEntry
 
 	// admin payloads
 	Stats          *svc.StatsOverview

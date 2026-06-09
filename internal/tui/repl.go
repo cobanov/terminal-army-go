@@ -20,7 +20,7 @@ import (
 	"github.com/cobanov/terminal-army-go/internal/tui/client"
 )
 
-const DefaultServerURL = "https://go.terminal.army"
+const DefaultServerURL = "https://terminal.army"
 
 // RunREPL starts the Python-compatible slash-command client.
 func RunREPL(ctx context.Context, serverURL string, logout bool) error {

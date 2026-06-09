@@ -36,7 +36,7 @@ func New(baseURL string) *Client {
 
 func transportFor(baseURL string) http.RoundTripper {
 	u, err := url.Parse(baseURL)
-	if err != nil || u.Hostname() != "go.terminal.army" {
+	if err != nil || !usesPublicResolver(u.Hostname()) {
 		return http.DefaultTransport
 	}
 	resolver := &net.Resolver{
@@ -54,6 +54,10 @@ func transportFor(baseURL string) http.RoundTripper {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.DialContext = dialer.DialContext
 	return tr
+}
+
+func usesPublicResolver(host string) bool {
+	return host == "terminal.army" || host == "go.terminal.army"
 }
 
 // SetToken installs a bearer token for subsequent requests.

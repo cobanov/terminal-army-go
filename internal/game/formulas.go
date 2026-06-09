@@ -189,13 +189,36 @@ func DefenseUnitCost(d DefenseType) (metal, crystal, deut int) {
 // BuildTimeSeconds is the in-game build duration in seconds.
 // Source: https://ogame.fandom.com/wiki/Formulas
 func BuildTimeSeconds(metal, crystal, roboticsLevel, naniteLevel int, speed float64) int {
+	return buildTimeSeconds(metal, crystal, roboticsLevel, naniteLevel, speed, 1)
+}
+
+// BuildingUpgradeTimeSeconds returns the in-game duration for one building
+// upgrade. Redesigned universes apply an extra early-level speed-up through
+// level 5.
+// Source: https://ogame.fandom.com/wiki/Buildings
+func BuildingUpgradeTimeSeconds(metal, crystal, roboticsLevel, naniteLevel, targetLevel int, speed float64) int {
+	return buildTimeSeconds(metal, crystal, roboticsLevel, naniteLevel, speed, earlyBuildingTimeDivisor(targetLevel))
+}
+
+func buildTimeSeconds(metal, crystal, roboticsLevel, naniteLevel int, speed, extraDivisor float64) int {
+	if extraDivisor <= 0 {
+		extraDivisor = 1
+	}
 	hours := float64(metal+crystal) /
-		(2500.0 * (1.0 + float64(roboticsLevel)) * speed * math.Pow(2, float64(naniteLevel)))
+		(2500.0 * (1.0 + float64(roboticsLevel)) * speed * math.Pow(2, float64(naniteLevel)) * extraDivisor)
 	secs := int(hours * 3600)
 	if secs < 1 {
 		secs = 1
 	}
 	return secs
+}
+
+func earlyBuildingTimeDivisor(targetLevel int) float64 {
+	currentLevel := targetLevel - 1
+	if currentLevel < 0 || currentLevel >= 5 {
+		return 1
+	}
+	return float64(7-currentLevel) / 2.0
 }
 
 // ResearchTimeSeconds returns the in-game research duration in seconds. labLevel

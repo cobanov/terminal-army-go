@@ -1,18 +1,58 @@
 {{define "content"}}
-<p>OGame, rewritten as a Go server with a terminal client. The galaxy is run from the command line; this web surface exists for sign-up and alliance management.</p>
+{{template "topbar" .}}
 
-<h2>Get the client</h2>
-<pre>$ curl -fsSL https://raw.githubusercontent.com/cobanov/terminal-army-go/main/install.sh | bash
-$ tarmy</pre>
+<div class="landing-hero">
+  {{template "logo" .}}
+</div>
 
-<h2>Quick start</h2>
-<ol>
-  <li>Run <code>tarmy</code> and sign in from the browser URL it prints.</li>
-  <li>Return to the terminal when the sign-in page confirms the session.</li>
-  <li>Build mines, research tech, dispatch fleets with slash commands.</li>
-  <li><a href="/alliance">Join or found an alliance</a> with friends.</li>
-</ol>
+<div class="landing-content">
+  <div class="card">
+    <h2 class="card-title">What is this <small>tldr</small></h2>
+    <p>
+      A terminal-native multiplayer space strategy game in the spirit of OGame.
+      You play from your terminal via the <code>tarmy</code> CLI. Resources
+      accrue in real time, multiple players share the same universe, and the
+      command line is the cockpit.
+    </p>
+  </div>
 
-<h2>Status</h2>
-<p class="muted">Server time: {{.Now.Format "2006-01-02 15:04 UTC"}}</p>
+  <div class="card">
+    <h2 class="card-title">Install <small>one terminal, two commands</small></h2>
+    <p class="hint" style="margin-bottom:0.6rem;">1. Install the CLI:</p>
+    <pre class="key">curl -fsSL https://terminal.army/install.sh | sh</pre>
+    <p class="hint" style="margin:1rem 0 0.6rem 0;">2. Start playing:</p>
+    <pre class="key">tarmy</pre>
+    <p class="hint" style="margin-top:1rem;">
+      No config needed for the public shard. The CLI defaults to
+      <code>{{.PublicURL}}</code>, opens a browser sign-in URL, then returns
+      control to your terminal once authenticated.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Rankings <small>top {{len .Leaderboard}} commanders</small></h2>
+    {{if .Leaderboard}}
+      <table>
+        <thead>
+          <tr><th>rank</th><th>commander</th><th class="right">score</th></tr>
+        </thead>
+        <tbody>
+          {{range .Leaderboard}}
+          <tr>
+            <td class="dim">#{{.Rank}}</td>
+            <td><b>{{.Username}}</b>{{if .Alliance}} <span class="dim">[{{.Alliance}}]</span>{{end}}</td>
+            <td class="right success">{{.Score}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="empty-state">No players yet. Be the first to sign up.</p>
+    {{end}}
+  </div>
+
+  <p class="switch" style="margin-top:2rem;">
+    Source: <a href="https://github.com/cobanov/terminal-army-go">github.com/cobanov/terminal-army-go</a>
+  </p>
+</div>
 {{end}}

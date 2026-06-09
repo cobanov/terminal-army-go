@@ -24,6 +24,9 @@
 package web
 
 import (
+	"io/fs"
+	"net/http"
+
 	"github.com/cobanov/terminal-army-go/internal/svc"
 	"github.com/go-chi/chi/v5"
 )
@@ -36,6 +39,9 @@ func Mount(r chi.Router, app *svc.App) {
 	// 10-attempt burst, 1 request per 5 seconds sustained. Same shape as the
 	// API limiter so users hit similar walls on either surface.
 	authThrottle := newWebRateLimiter(10, 0.2)
+
+	r.Handle("/static/*", staticFileServer())
+	r.HandleFunc("/install.sh", installScriptHandler)
 
 	r.Group(func(r chi.Router) {
 		r.Use(withSession(app))
@@ -68,4 +74,28 @@ func Mount(r chi.Router, app *svc.App) {
 			r.Post("/users", adminUsersHandler(app))
 		})
 	})
+}
+
+func staticFileServer() http.Handler {
+	staticRoot, err := fs.Sub(templateFS, "static")
+	if err != nil {
+		panic(err)
+	}
+	return http.StripPrefix("/static/", http.FileServer(http.FS(staticRoot)))
+}
+
+func installScriptHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := templateFS.ReadFile("static/install.sh")
+	if err != nil {
+		http.Error(w, "installer unavailable", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	_, _ = w.Write(body)
 }

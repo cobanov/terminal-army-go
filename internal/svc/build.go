@@ -106,7 +106,7 @@ func (s *BuildService) QueueBuilding(ctx context.Context, userID, planetID int64
 
 		robotics := buildings[string(game.BuildingRoboticsFactory)]
 		nanite := buildings[string(game.BuildingNaniteFactory)]
-		seconds := game.BuildTimeSeconds(costMetal, costCrystal, robotics, nanite, float64(universe.SpeedEconomy))
+		seconds := game.BuildingUpgradeTimeSeconds(costMetal, costCrystal, robotics, nanite, target, float64(universe.SpeedEconomy))
 
 		// Chain to queue tail when something is already queued.
 		now := time.Now().UTC()

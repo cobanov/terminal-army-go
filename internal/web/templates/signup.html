@@ -1,16 +1,39 @@
 {{define "content"}}
-<h2>Sign up</h2>
-<p class="muted">3-32 chars username (letters, digits, underscore, dash). Password at least 8 chars.</p>
-<form method="post" action="/signup{{if .Form.code}}?code={{.Form.code}}{{end}}" autocomplete="on">
-  <input type="hidden" name="csrf" value="{{.CSRF}}">
-  {{if .Form.code}}<input type="hidden" name="code" value="{{.Form.code}}">{{end}}
-  <label for="username">Username</label>
-  <input id="username" name="username" type="text" required minlength="3" maxlength="32" value="{{.Form.username}}" autofocus>
-  <label for="email">Email</label>
-  <input id="email" name="email" type="email" required maxlength="255" value="{{.Form.email}}">
-  <label for="password">Password</label>
-  <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password">
-  <button type="submit">Create account</button>
-</form>
-<p class="muted">Already have an account? <a href="/login{{if .Form.code}}?code={{.Form.code}}{{end}}">Log in</a>.</p>
+<div class="login-container">
+  {{template "logo" .}}
+
+  {{if .Form.code}}
+    <div class="info-banner">
+      <strong>Terminal authentication</strong> &middot;
+      create an account to authorize your <code>tarmy</code> CLI session.
+    </div>
+  {{end}}
+
+  <div class="card">
+    <h2 class="card-title">Create account <small>new commander</small></h2>
+    <form method="post" action="/signup{{if .Form.code}}?code={{.Form.code}}{{end}}" autocomplete="on">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      {{if .Form.code}}<input type="hidden" name="code" value="{{.Form.code}}">{{end}}
+      <label class="field">
+        <span class="field-label">Username<span class="hint-inline">3-32 chars</span></span>
+        <input name="username" type="text" required minlength="3" maxlength="32" autocomplete="username" value="{{.Form.username}}" autofocus>
+      </label>
+      <label class="field">
+        <span class="field-label">Email</span>
+        <input name="email" type="email" required maxlength="255" autocomplete="email" value="{{.Form.email}}">
+      </label>
+      <label class="field">
+        <span class="field-label">Password<span class="hint-inline">8+ chars</span></span>
+        <input name="password" type="password" required minlength="8" autocomplete="new-password">
+      </label>
+      <button type="submit">Sign up &rarr;</button>
+    </form>
+    <p class="hint">A homeworld will be assigned automatically. You will be signed in immediately.</p>
+  </div>
+
+  <p class="switch">
+    Already have an account?
+    <a href="/login{{if .Form.code}}?code={{.Form.code}}{{end}}">Sign in</a>
+  </p>
+</div>
 {{end}}

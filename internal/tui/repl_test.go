@@ -87,7 +87,7 @@ func TestConsoleCockpitViewContainsMajorRegions(t *testing.T) {
 		ctx:   context.Background(),
 		input: input,
 		session: &replSession{
-			client: client.New("https://go.terminal.army"),
+			client: client.New("https://terminal.army"),
 			user:   &svc.User{Username: "cobanov", Email: "cobanov@example.test", Role: "player"},
 			planets: []svc.Planet{{
 				ID:                     1,
@@ -145,7 +145,7 @@ func TestConsoleCockpitViewDoesNotOverflowWideTerminal(t *testing.T) {
 		ctx:   context.Background(),
 		input: input,
 		session: &replSession{
-			client: client.New("https://go.terminal.army"),
+			client: client.New("https://terminal.army"),
 			user:   &svc.User{Username: "cobanov", Email: "cobanov@example.test", Role: "player"},
 			planets: []svc.Planet{
 				{ID: 1, Code: "3SXQ7YSQ", Name: "Homeworld", Galaxy: 7, System: 447, Position: 12, FieldsUsed: 3, FieldsTotal: 108, TempMin: -15, TempMax: 25, Metal: 225, Crystal: 435, EnergyProduced: 0, EnergyUsed: 0},

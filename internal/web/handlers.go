@@ -15,10 +15,11 @@ import (
 // are populated by the caller.
 func baseView(app *svc.App, r *http.Request, title string) viewData {
 	v := viewData{
-		Title:     title,
-		CSRF:      csrfFromCtx(r.Context()),
-		PublicURL: app.Cfg.PublicURL,
-		Now:       time.Now().UTC(),
+		Title:      title,
+		CSRF:       csrfFromCtx(r.Context()),
+		PublicURL:  app.Cfg.PublicURL,
+		Now:        time.Now().UTC(),
+		ShellClass: "dash-shell",
 	}
 	if s := sessionFromCtx(r.Context()); s != nil {
 		v.User = s.User
@@ -31,6 +32,10 @@ func baseView(app *svc.App, r *http.Request, title string) viewData {
 func indexHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		view := baseView(app, r, "home")
+		view.ShellClass = "landing-shell"
+		if rows, err := app.Leaderboard.Top(r.Context(), 5); err == nil {
+			view.Leaderboard = rows
+		}
 		writePage(w, "index", view)
 	}
 }
@@ -41,6 +46,7 @@ func indexHandler(app *svc.App) http.HandlerFunc {
 func signupHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		view := baseView(app, r, "sign up")
+		view.ShellClass = "login-shell"
 		code := authCodeFromRequest(r)
 		view.Form = map[string]string{"code": code}
 
@@ -102,6 +108,7 @@ func signupHandler(app *svc.App) http.HandlerFunc {
 func loginHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		view := baseView(app, r, "log in")
+		view.ShellClass = "login-shell"
 		code := authCodeFromRequest(r)
 		view.Form = map[string]string{"code": code}
 

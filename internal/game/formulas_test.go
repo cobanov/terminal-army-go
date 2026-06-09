@@ -73,6 +73,41 @@ func TestCrawlerActiveCapAndEnergyConsumption(t *testing.T) {
 	}
 }
 
+func TestSolarPlantLevelOneMatchesFandomCostAndRedesignedTime(t *testing.T) {
+	metal, crystal, deut := BuildingLevelCost(BuildingSolarPlant, 1)
+	if metal != 75 || crystal != 30 || deut != 0 {
+		t.Fatalf("Solar Plant L1 cost = %d/%d/%d, want 75/30/0", metal, crystal, deut)
+	}
+
+	if got := BuildTimeSeconds(metal, crystal, 0, 0, 1); got != 151 {
+		t.Fatalf("base BuildTimeSeconds for Solar Plant L1 = %d, want 151", got)
+	}
+	if got := BuildingUpgradeTimeSeconds(metal, crystal, 0, 0, 1, 1); got != 43 {
+		t.Fatalf("redesigned Solar Plant L1 build time = %d, want 43", got)
+	}
+}
+
+func TestBuildingUpgradeTimeUsesEarlyLevelReductionThroughLevelFive(t *testing.T) {
+	tests := []struct {
+		name   string
+		target int
+		want   int
+	}{
+		{name: "level 1", target: 1, want: 43},
+		{name: "level 5", target: 5, want: 508},
+		{name: "level 6", target: 6, want: 1146},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metal, crystal, _ := BuildingLevelCost(BuildingSolarPlant, tt.target)
+			got := BuildingUpgradeTimeSeconds(metal, crystal, 0, 0, tt.target, 1)
+			if got != tt.want {
+				t.Fatalf("BuildingUpgradeTimeSeconds target %d = %d, want %d", tt.target, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestProductionIncludesCrawlerCapAndEnergyUse(t *testing.T) {
 	report := ComputePlanetProduction(
 		map[BuildingType]int{

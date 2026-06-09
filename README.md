@@ -71,13 +71,13 @@ docker compose exec tarmy tarmy admin promote <username>
 If somebody else is running the server and you only want to play:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cobanov/terminal-army-go/main/install.sh | bash
+curl -fsSL https://terminal.army/install.sh | sh
 
 tarmy --remote https://your-friends-server.example
 ```
 
 For the public shard, just run `tarmy`; it defaults to
-`https://go.terminal.army`, opens a browser sign-in URL, then returns you to the
+`https://terminal.army`, opens a browser sign-in URL, then returns you to the
 slash-command terminal client.
 
 The install script picks the right binary for your OS and CPU (Linux or
