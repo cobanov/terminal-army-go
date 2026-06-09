@@ -86,7 +86,7 @@ services:
     # Distroless has no shell; use the built-in /healthz route via the
     # binary itself. Compose 2 supports the `start_period` option.
     healthcheck:
-      test: ["CMD", "/usr/local/bin/tarmy", "version"]
+      test: ["CMD", "/usr/local/bin/tarmy", "--version"]
       interval: 30s
       timeout: 5s
       retries: 3

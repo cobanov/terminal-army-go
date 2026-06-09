@@ -1,9 +1,8 @@
-# syntax=docker/dockerfile:1.7
 # ---- build stage --------------------------------------------------------
 # Pin Go to the version recorded in go.mod (1.25). We build a fully static
 # binary so the runtime stage can be distroless (no libc), which shrinks the
 # image to ~25 MB and keeps the attack surface tiny.
-FROM golang:1.25-alpine AS build
+FROM public.ecr.aws/docker/library/golang:1.25-alpine AS build
 
 ENV CGO_ENABLED=0 \
     GOOS=linux \
@@ -14,8 +13,7 @@ WORKDIR /src
 # Cache module downloads in a dedicated layer so iterative builds skip the
 # network whenever go.mod / go.sum have not changed.
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download
+RUN go mod download
 
 # Pull the rest of the source. The internal/store/migrations files are
 # go:embed'd, so they ship inside the binary - no separate COPY needed at
@@ -27,9 +25,7 @@ COPY . .
 # optional so the default `docker build .` still works.
 ARG VERSION=dev
 ARG COMMIT=unknown
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -trimpath \
+RUN go build -trimpath \
         -ldflags="-s -w \
           -X github.com/cobanov/terminal-army-go/internal/version.Version=${VERSION} \
           -X github.com/cobanov/terminal-army-go/internal/version.Commit=${COMMIT}" \

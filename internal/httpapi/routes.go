@@ -24,13 +24,9 @@ func init() {
 		})
 
 		r.Route("/auth", func(r chi.Router) {
-			r.Use(authThrottle.middleware)
-			r.Post("/start", deviceStart(app))
-			r.Post("/poll", devicePoll(app))
-		})
-		r.Route("/auth", func(r chi.Router) {
-			r.Use(auth.Middleware(app))
-			r.Get("/me", meHandler(app))
+			r.With(authThrottle.middleware).Post("/start", deviceStart(app))
+			r.With(authThrottle.middleware).Post("/poll", devicePoll(app))
+			r.With(auth.Middleware(app)).Get("/me", meHandler(app))
 		})
 
 		r.Get("/stats", publicStatsHandler(app))
