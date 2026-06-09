@@ -16,7 +16,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/cobanov/terminal-army-go/internal/game"
 	"github.com/cobanov/terminal-army-go/internal/svc"
 	"github.com/cobanov/terminal-army-go/internal/tui/client"
 )
@@ -225,7 +224,7 @@ func (m consoleModel) View() string {
 	w := max(96, m.width)
 	h := max(30, m.height)
 	leftW := 26
-	rightW := 34
+	rightW := 31
 	gap := 1
 	mainW := max(50, w-leftW-rightW-(gap*2))
 	bodyH := max(18, h-5)
@@ -236,7 +235,7 @@ func (m consoleModel) View() string {
 	main := centerStyle(mainW, mainH).Render(m.renderCenter(mainW-2, mainH-2))
 	right := sideRailStyle(rightW, bodyH).Render(m.renderRight(rightW - 4))
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), main, strings.Repeat(" ", gap), right)
-	return pageStyle(w, h).Render(lipgloss.JoinVertical(lipgloss.Left, top, body))
+	return lipgloss.JoinVertical(lipgloss.Left, top, body)
 }
 
 func (m *consoleModel) runCommand(line string) tea.Cmd {
@@ -382,7 +381,7 @@ func (m consoleModel) renderPlanetCard(width, height int) string {
 
 func (m consoleModel) renderCommandArea(width, height int) string {
 	title := accentOrange().Render("terminal.army")
-	help := mutedStyle().Render("Type / for commands · Tab complete · Enter run · /resources /tree /queue")
+	help := mutedStyle().Render("Type / to see commands, Tab to autocomplete, Enter to run.")
 	body := m.renderLog(width, max(1, height-2))
 	return clampBlock(title+"\n"+help+"\n"+body, width, height)
 }
@@ -457,13 +456,12 @@ func (m consoleModel) renderRight(width int) string {
 		row := fmt.Sprintf("%s%d. %s#%s", prefix, i+1, planet.Code, planet.Name)
 		b.WriteString(accentOrange().Render(clampLine(row, width)))
 		b.WriteByte('\n')
-		b.WriteString(mutedStyle().Render(clampLine(fmt.Sprintf("     %d:%d:%d M %s C %s", planet.Galaxy, planet.System, planet.Position, formatCompact(planet.Metal), formatCompact(planet.Crystal)), width)))
+		b.WriteString(mutedStyle().Render(clampLine(fmt.Sprintf("     %d:%d:%d   M %s", planet.Galaxy, planet.System, planet.Position, formatCompact(planet.Metal)), width)))
 		b.WriteByte('\n')
 	}
 	writeSection(&b, width, fmt.Sprintf("QUEUES (%d/5)", len(m.side.queues)), m.renderQueueRows(width))
 	writeSection(&b, width, fmt.Sprintf("MISSIONS (%d)", len(m.side.fleets)), m.renderFleetRows(width))
-	qdone, qtotal, qrows := questSummary(p)
-	writeSection(&b, width, fmt.Sprintf("QUESTS [%d/%d]", qdone, qtotal), qrows)
+	writeSection(&b, width, "QUESTS [10/15]", []string{"▸ Send your first fleet"})
 	writeSection(&b, width, messageSectionTitle(m.side.messages), m.renderMessageRows(width))
 	if m.side.err != nil {
 		writeSection(&b, width, "SYNC", []string{"queue unavailable"})
@@ -485,10 +483,7 @@ func (m consoleModel) renderQueueRows(width int) []string {
 			label = fmt.Sprintf("%s x%d", label, q.Count)
 		}
 		remaining := formatRemaining(q.FinishedAt.Sub(now))
-		frac := progressFraction(q.StartedAt, q.FinishedAt, now)
-		filled, empty := progressBar(frac, 10)
-		rows = append(rows, clampLine(fmt.Sprintf("#%d %s %-16s %s", q.ID, queueTypeCode(q.QueueType), label, remaining), width-2))
-		rows = append(rows, progressStyle().Render("    "+filled)+mutedStyle().Render(empty)+mutedStyle().Render(fmt.Sprintf(" %3.0f%%", frac*100)))
+		rows = append(rows, clampLine(fmt.Sprintf("▸ %s %-14s %s", queueTypeCode(q.QueueType), label, remaining), width-2))
 		if len(rows) == 5 {
 			break
 		}
@@ -544,7 +539,6 @@ func (m consoleModel) renderMessageRows(width int) []string {
 			prefix = "*"
 		}
 		rows = append(rows, clampLine(fmt.Sprintf("%s #%d %s", prefix, msg.ID, msg.Subject), width-2))
-		rows = append(rows, mutedStyle().Render(clampLine(fmt.Sprintf("    %s · %s", msg.Category, shortTimeAgo(msg.CreatedAt)), width-2)))
 		if len(rows) == 4 {
 			break
 		}
@@ -592,47 +586,6 @@ func formatRemaining(d time.Duration) string {
 	h := int(d.Hours())
 	m := int(d.Minutes()) % 60
 	return fmt.Sprintf("%dh%02dm", h, m)
-}
-
-func progressFraction(start, finish, now time.Time) float64 {
-	total := finish.Sub(start).Seconds()
-	if total <= 0 {
-		return 1
-	}
-	frac := now.Sub(start).Seconds() / total
-	if frac < 0 {
-		return 0
-	}
-	if frac > 1 {
-		return 1
-	}
-	return frac
-}
-
-func progressBar(frac float64, width int) (string, string) {
-	frac = maxFloat(0, minFloat(1, frac))
-	filled := int(math.Round(frac * float64(width)))
-	if filled > width {
-		filled = width
-	}
-	return strings.Repeat("█", filled), strings.Repeat("─", width-filled)
-}
-
-func shortTimeAgo(t time.Time) string {
-	if t.IsZero() {
-		return "?"
-	}
-	d := time.Since(t)
-	if d < time.Minute {
-		return "now"
-	}
-	if d < time.Hour {
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
-	}
-	if d < 24*time.Hour {
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
-	}
-	return t.Local().Format("02 Jan")
 }
 
 func (m *consoleModel) refreshSuggestions() {
@@ -731,9 +684,7 @@ func commandSuggestions(prefix string) []completion {
 		{"/resources", "/resources", "resources and buildings"},
 		{"/facilities", "/facilities", "facilities overview"},
 		{"/upgrade ", "/upgrade <building>", "queue building"},
-		{"/queue", "/queue", "active build and research queue"},
 		{"/research ", "/research <tech>", "queue research"},
-		{"/tree", "/tree", "research tree and prerequisites"},
 		{"/ships", "/ships", "ship inventory"},
 		{"/ships build ", "/ships build <ship> <n>", "build ships"},
 		{"/defense", "/defense", "defense inventory"},
@@ -949,76 +900,6 @@ func maxFloat(a, b float64) float64 {
 	return b
 }
 
-func minFloat(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-type questStep struct {
-	Title string
-	Done  bool
-	Hint  string
-}
-
-func questSteps(p *svc.Planet) []questStep {
-	if p == nil {
-		return nil
-	}
-	building := func(key game.BuildingType) int {
-		return p.Buildings[string(key)]
-	}
-	ship := func(key game.ShipType) int {
-		return p.Ships[string(key)]
-	}
-	defense := func(key game.DefenseType) int {
-		return p.Defense[string(key)]
-	}
-	return []questStep{
-		{"Build Metal Mine L1", building(game.BuildingMetalMine) >= 1, "/upgrade metal_mine"},
-		{"Build Crystal Mine L1", building(game.BuildingCrystalMine) >= 1, "/upgrade crystal_mine"},
-		{"Build Solar Plant L1", building(game.BuildingSolarPlant) >= 1, "/upgrade solar_plant"},
-		{"Build Deuterium Synth L1", building(game.BuildingDeuteriumSynthesizer) >= 1, "/upgrade deuterium_synthesizer"},
-		{"Build Robotics Factory L2", building(game.BuildingRoboticsFactory) >= 2, "/upgrade robotics_factory"},
-		{"Build Shipyard L1", building(game.BuildingShipyard) >= 1, "/upgrade shipyard"},
-		{"Build Research Lab L1", building(game.BuildingResearchLab) >= 1, "/upgrade research_lab"},
-		{"Build Espionage Probe", ship(game.ShipEspionageProbe) >= 1, "/ships build espionage_probe 1"},
-		{"Scout a nearby system", ship(game.ShipEspionageProbe) >= 1, "/galaxy <g:s> then /espionage <g:s:p>"},
-		{"Build Rocket Launcher", defense(game.DefenseRocketLauncher) >= 1, "/defense build rocket_launcher 1"},
-	}
-}
-
-func questSummary(p *svc.Planet) (int, int, []string) {
-	steps := questSteps(p)
-	if len(steps) == 0 {
-		return 0, 0, []string{"no planet"}
-	}
-	done := 0
-	current := -1
-	for i, step := range steps {
-		if step.Done {
-			done++
-			continue
-		}
-		if current == -1 {
-			current = i
-		}
-	}
-	if current == -1 {
-		return done, len(steps), []string{"all complete"}
-	}
-	rows := []string{"▸ " + steps[current].Title, "  " + steps[current].Hint}
-	next := 0
-	for i := current + 1; i < len(steps) && next < 2; i++ {
-		if !steps[i].Done {
-			rows = append(rows, "  next "+steps[i].Title)
-			next++
-		}
-	}
-	return done, len(steps), rows
-}
-
 func catalogKeys(rows []CatalogItem) []string {
 	keys := make([]string, 0, len(rows))
 	for _, row := range rows {
@@ -1092,24 +973,11 @@ func selectedStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("178")).Bold(true).Padding(0, 1)
 }
 
-func progressStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("118"))
-}
-
-func pageStyle(width, height int) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Width(width).
-		Height(height).
-		Foreground(lipgloss.Color("252")).
-		Background(lipgloss.Color("0"))
-}
-
 func topBarStyle(width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(width).
-		Background(lipgloss.Color("0")).
 		Border(lipgloss.NormalBorder(), false, false, true, false).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(lipgloss.Color("238")).
 		Padding(0, 1)
 }
 
@@ -1117,9 +985,8 @@ func sideRailStyle(width, height int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
-		Background(lipgloss.Color("0")).
 		Border(lipgloss.NormalBorder(), false, true, false, false).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(lipgloss.Color("238")).
 		Padding(0, 1)
 }
 
@@ -1127,7 +994,6 @@ func centerStyle(width, height int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
-		Background(lipgloss.Color("0")).
 		Padding(0, 0)
 }
 

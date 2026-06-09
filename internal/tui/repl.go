@@ -177,10 +177,8 @@ func (r *replSession) exec(ctx context.Context, line string) error {
 		return r.switchPlanet(ctx, nil)
 	case "planet", "p":
 		return r.printPlanet(ctx)
-	case "resources":
-		return r.printBuildingGroup(ctx, "resources", resourceCatalog())
-	case "facilities":
-		return r.printBuildingGroup(ctx, "facilities", facilityCatalog())
+	case "resources", "facilities":
+		return r.printPlanet(ctx)
 	case "queue":
 		return r.printQueue(ctx)
 	case "switch":
@@ -189,8 +187,6 @@ func (r *replSession) exec(ctx context.Context, line string) error {
 		return r.queueBuilding(ctx, args)
 	case "research", "r":
 		return r.research(ctx, args)
-	case "tree":
-		return r.printTechTree(ctx)
 	case "ships", "ship", "s":
 		return r.ships(ctx, args)
 	case "defense", "def":
@@ -333,43 +329,6 @@ func (r *replSession) printPlanet(ctx context.Context) error {
 	return nil
 }
 
-func (r *replSession) printBuildingGroup(ctx context.Context, title string, catalog []CatalogItem) error {
-	p, err := r.refreshCurrent(ctx)
-	if err != nil {
-		return err
-	}
-	prod, err := withTimeout(ctx, func(ctx context.Context) (*svc.ProductionReport, error) {
-		return r.client.GetProduction(ctx, p.ID)
-	})
-	if err != nil {
-		return err
-	}
-
-	r.printf("%s  %s [%s] %d:%d:%d\n", title, p.Name, p.Code, p.Galaxy, p.System, p.Position)
-	r.printf("stockpile  metal %s/%s  crystal %s/%s  deuterium %s/%s\n",
-		formatCompact(p.Metal), formatCompact(float64(prod.StorageCapMetal)),
-		formatCompact(p.Crystal), formatCompact(float64(prod.StorageCapCrystal)),
-		formatCompact(p.Deuterium), formatCompact(float64(prod.StorageCapDeuterium)),
-	)
-	r.printf("hourly     metal +%.0f  crystal +%.0f  deuterium +%.0f  factor %.2fx\n",
-		prod.MetalPerHour, prod.CrystalPerHour, prod.DeuteriumPerHour, prod.ProductionFactor)
-	r.printf("energy     prod %d  used %d  balance %+d\n", prod.EnergyProduced, prod.EnergyUsed, prod.EnergyProduced-prod.EnergyUsed)
-	r.println()
-	r.printf("%-28s %5s %10s %10s %10s  %s\n", "building", "lvl", "metal", "crystal", "deut", "status")
-	for _, item := range catalog {
-		level := p.Buildings[item.Key]
-		target := level + 1
-		metal, crystal, deut := game.BuildingLevelCost(game.BuildingType(item.Key), target)
-		status := "ready"
-		if p.Metal < float64(metal) || p.Crystal < float64(crystal) || p.Deuterium < float64(deut) {
-			status = "need resources"
-		}
-		r.printf("%-28s %5d %10s %10s %10s  %s\n",
-			item.Key, level, formatCompact(float64(metal)), formatCompact(float64(crystal)), formatCompact(float64(deut)), status)
-	}
-	return nil
-}
-
 func (r *replSession) switchPlanet(ctx context.Context, args []string) error {
 	if len(args) == 0 {
 		for i, p := range r.planets {
@@ -431,48 +390,6 @@ func (r *replSession) research(ctx context.Context, args []string) error {
 	}
 	r.printf("queued %s level %d, finishes %s\n", item.ItemKey, item.TargetLevel, item.FinishedAt.Local().Format(time.Kitchen))
 	return nil
-}
-
-func (r *replSession) printTechTree(ctx context.Context) error {
-	rows, err := withTimeout(ctx, func(ctx context.Context) ([]svc.ResearchLevel, error) {
-		return r.client.ListResearch(ctx)
-	})
-	if err != nil {
-		return err
-	}
-	p, _ := r.refreshCurrent(ctx)
-	levels := map[game.TechType]int{}
-	for _, row := range rows {
-		levels[game.TechType(row.Tech)] = row.Level
-	}
-	maxLab := 0
-	for _, planet := range r.planets {
-		if lab := planet.Buildings[string(game.BuildingResearchLab)]; lab > maxLab {
-			maxLab = lab
-		}
-	}
-	r.println("research tree")
-	for _, tech := range techTreeRoots() {
-		r.printTechNode(tech, "", levels, maxLab, p)
-	}
-	return nil
-}
-
-func (r *replSession) printTechNode(tech game.TechType, prefix string, levels map[game.TechType]int, maxLab int, p *svc.Planet) {
-	level := levels[tech]
-	target := level + 1
-	metal, crystal, deut := game.ResearchLevelCost(tech, target)
-	status := "ready"
-	if missing := missingTechPrereqs(tech, levels, maxLab); len(missing) > 0 {
-		status = "locked: " + strings.Join(missing, ", ")
-	} else if p != nil && (p.Metal < float64(metal) || p.Crystal < float64(crystal) || p.Deuterium < float64(deut)) {
-		status = "need resources"
-	}
-	r.printf("%s%-22s L%-3d next %s/%s/%s  %s\n",
-		prefix, string(tech), level, formatCompact(float64(metal)), formatCompact(float64(crystal)), formatCompact(float64(deut)), status)
-	for _, child := range techTreeChildren()[tech] {
-		r.printTechNode(child, prefix+"  └─ ", levels, maxLab, p)
-	}
 }
 
 func (r *replSession) ships(ctx context.Context, args []string) error {
@@ -751,33 +668,19 @@ func (r *replSession) quest(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	steps := questSteps(p)
-	done := 0
-	current := -1
-	for i, step := range steps {
-		if step.Done {
-			done++
-			continue
-		}
-		if current == -1 {
-			current = i
-		}
-	}
-	r.printf("quests %d/%d\n", done, len(steps))
-	if current == -1 {
-		r.println("  all complete")
+	if p.Buildings[string(game.BuildingMetalMine)] == 0 {
+		r.println("current quest: build a metal mine with /upgrade metal_mine")
 		return nil
 	}
-	for i, step := range steps {
-		switch {
-		case step.Done && i >= current-3:
-			r.printf("  done  %s\n", step.Title)
-		case i == current:
-			r.printf("  next  %s\n        %s\n", step.Title, step.Hint)
-		case i > current && i < current+5:
-			r.printf("  later %s\n", step.Title)
-		}
+	if p.Buildings[string(game.BuildingCrystalMine)] == 0 {
+		r.println("current quest: build a crystal mine with /upgrade crystal_mine")
+		return nil
 	}
+	if p.Buildings[string(game.BuildingResearchLab)] == 0 {
+		r.println("current quest: build a research lab with /upgrade research_lab")
+		return nil
+	}
+	r.println("current quest: scout the galaxy with /galaxy")
 	return nil
 }
 
@@ -850,12 +753,8 @@ func parseKVArgs(args []string) (map[string]int, map[string]int) {
 func (r *replSession) printHelp() {
 	r.println(`/planet                 show current planet
 /switch 2               switch planet by number, code, or name
-/resources              mines, energy, storage, crawlers
-/facilities             industry, research, depots
 /upgrade metal_mine     queue a building
-/queue                  show active build/research queue
 /research energy        queue research from current planet
-/tree                   show research tree and prerequisites
 /ships build key n      build ships; /ships lists inventory
 /defense build key n    build defenses; /defense lists inventory
 /galaxy [g:s]           show a system
@@ -893,72 +792,6 @@ func (r *replSession) printLevels(title string, rows map[string]int) {
 	for _, k := range keys {
 		r.printf("  %-24s %d\n", k, rows[k])
 	}
-}
-
-func resourceCatalog() []CatalogItem {
-	keys := map[string]bool{}
-	for _, key := range game.ResourceBuildings {
-		keys[string(key)] = true
-	}
-	return filterCatalog(BuildingCatalog, keys)
-}
-
-func facilityCatalog() []CatalogItem {
-	keys := map[string]bool{}
-	for _, key := range game.FacilityBuildings {
-		keys[string(key)] = true
-	}
-	return filterCatalog(BuildingCatalog, keys)
-}
-
-func filterCatalog(rows []CatalogItem, keep map[string]bool) []CatalogItem {
-	out := make([]CatalogItem, 0, len(rows))
-	for _, row := range rows {
-		if keep[row.Key] {
-			out = append(out, row)
-		}
-	}
-	return out
-}
-
-func techTreeRoots() []game.TechType {
-	return []game.TechType{
-		game.TechEnergy,
-		game.TechComputer,
-		game.TechEspionage,
-		game.TechWeapons,
-		game.TechArmour,
-	}
-}
-
-func techTreeChildren() map[game.TechType][]game.TechType {
-	return map[game.TechType][]game.TechType{
-		game.TechEnergy: {
-			game.TechLaser,
-			game.TechHyperspace,
-			game.TechCombustionDrive,
-			game.TechImpulseDrive,
-			game.TechShielding,
-		},
-		game.TechLaser:      {game.TechIon},
-		game.TechIon:        {game.TechPlasma},
-		game.TechHyperspace: {game.TechHyperspaceDrive},
-		game.TechEspionage:  {game.TechAstrophysics},
-	}
-}
-
-func missingTechPrereqs(tech game.TechType, levels map[game.TechType]int, maxLab int) []string {
-	reqs := game.TechPrerequisites[tech]
-	missing := make([]string, 0, len(reqs))
-	for _, req := range reqs {
-		if req.LabLevel > 0 && maxLab < req.LabLevel {
-			missing = append(missing, fmt.Sprintf("lab L%d", req.LabLevel))
-		}
-		if req.Tech != "" && levels[req.Tech] < req.Level {
-			missing = append(missing, fmt.Sprintf("%s L%d", req.Tech, req.Level))
-		}
-	}
-	return missing
 }
 
 func withTimeout[T any](ctx context.Context, f func(context.Context) (T, error)) (T, error) {

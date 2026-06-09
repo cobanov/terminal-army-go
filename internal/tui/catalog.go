@@ -20,7 +20,6 @@ var BuildingCatalog = []CatalogItem{
 	{string(game.BuildingSolarPlant), "Solar Plant"},
 	{string(game.BuildingFusionReactor), "Fusion Reactor"},
 	{string(game.BuildingSolarSatellite), "Solar Satellite"},
-	{string(game.BuildingCrawler), "Crawler"},
 	{string(game.BuildingMetalStorage), "Metal Storage"},
 	{string(game.BuildingCrystalStorage), "Crystal Storage"},
 	{string(game.BuildingDeuteriumTank), "Deuterium Tank"},
