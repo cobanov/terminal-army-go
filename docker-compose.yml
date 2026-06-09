@@ -39,6 +39,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VERSION: ${TARMY_VERSION:-dev}
+        COMMIT: ${TARMY_COMMIT:-unknown}
     image: tarmy:local
     depends_on:
       postgres:
@@ -55,6 +58,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VERSION: ${TARMY_VERSION:-dev}
+        COMMIT: ${TARMY_COMMIT:-unknown}
     image: tarmy:local
     depends_on:
       postgres:
