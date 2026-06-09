@@ -73,6 +73,7 @@ type consoleModel struct {
 	busy        bool
 	status      string
 	err         error
+	side        consoleSideState
 }
 
 type completion struct {
@@ -81,10 +82,23 @@ type completion struct {
 	desc  string
 }
 
+type consoleSideState struct {
+	planetID int64
+	queues   []svc.QueueItem
+	fleets   []svc.Fleet
+	messages []svc.Message
+	err      error
+	loadedAt time.Time
+}
+
 type commandDoneMsg struct {
 	line string
 	out  string
 	err  error
+}
+
+type sideStateLoadedMsg struct {
+	state consoleSideState
 }
 
 func newConsoleModel(ctx context.Context, r *replSession) consoleModel {
@@ -113,7 +127,7 @@ func newConsoleModel(ctx context.Context, r *replSession) consoleModel {
 }
 
 func (m consoleModel) Init() tea.Cmd {
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, m.loadSideState())
 }
 
 func (m consoleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -136,6 +150,12 @@ func (m consoleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.addLog(errorStyle().Render("error: " + msg.err.Error()))
 		}
 		m.trimLog()
+		return m, m.loadSideState()
+	case sideStateLoadedMsg:
+		if p := m.currentPlanet(); p != nil && msg.state.planetID != 0 && msg.state.planetID != p.ID {
+			return m, nil
+		}
+		m.side = msg.state
 		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -222,6 +242,40 @@ func (m *consoleModel) runCommand(line string) tea.Cmd {
 	return func() tea.Msg {
 		out, err := m.capture(func() error { return m.session.exec(m.ctx, line) })
 		return commandDoneMsg{line: line, out: out, err: err}
+	}
+}
+
+func (m consoleModel) loadSideState() tea.Cmd {
+	p := m.currentPlanet()
+	if p == nil {
+		return nil
+	}
+	planetID := p.ID
+	return func() tea.Msg {
+		state := consoleSideState{planetID: planetID, loadedAt: time.Now()}
+		queues, err := withTimeout(m.ctx, func(ctx context.Context) ([]svc.QueueItem, error) {
+			return m.session.client.GetQueues(ctx, planetID)
+		})
+		if err != nil {
+			state.err = err
+			return sideStateLoadedMsg{state: state}
+		}
+		state.queues = queues
+
+		fleets, err := withTimeout(m.ctx, func(ctx context.Context) ([]svc.Fleet, error) {
+			return m.session.client.ListFleet(ctx)
+		})
+		if err == nil {
+			state.fleets = fleets
+		}
+
+		messages, err := withTimeout(m.ctx, func(ctx context.Context) ([]svc.Message, error) {
+			return m.session.client.ListMessages(ctx)
+		})
+		if err == nil {
+			state.messages = messages
+		}
+		return sideStateLoadedMsg{state: state}
 	}
 }
 
@@ -405,25 +459,133 @@ func (m consoleModel) renderRight(width int) string {
 		b.WriteString(mutedStyle().Render(clampLine(fmt.Sprintf("     %d:%d:%d   M %s", planet.Galaxy, planet.System, planet.Position, formatCompact(planet.Metal)), width)))
 		b.WriteByte('\n')
 	}
-	sections := []struct {
-		title string
-		body  []string
-	}{
-		{"QUEUES (0/5)", []string{"empty"}},
-		{"MISSIONS (0)", []string{"no active fleets"}},
-		{"QUESTS [10/15]", []string{"▸ Send your first fleet"}},
-		{"MESSAGES (none)", nil},
-	}
-	for _, section := range sections {
-		b.WriteString("\n")
-		b.WriteString(accentOrange().Render(section.title))
-		b.WriteByte('\n')
-		for _, row := range section.body {
-			b.WriteString(mutedStyle().Render("  " + clampLine(row, width-2)))
-			b.WriteByte('\n')
-		}
+	writeSection(&b, width, fmt.Sprintf("QUEUES (%d/5)", len(m.side.queues)), m.renderQueueRows(width))
+	writeSection(&b, width, fmt.Sprintf("MISSIONS (%d)", len(m.side.fleets)), m.renderFleetRows(width))
+	writeSection(&b, width, "QUESTS [10/15]", []string{"▸ Send your first fleet"})
+	writeSection(&b, width, messageSectionTitle(m.side.messages), m.renderMessageRows(width))
+	if m.side.err != nil {
+		writeSection(&b, width, "SYNC", []string{"queue unavailable"})
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func (m consoleModel) renderQueueRows(width int) []string {
+	if len(m.side.queues) == 0 {
+		return []string{"empty"}
+	}
+	now := time.Now()
+	rows := make([]string, 0, min(len(m.side.queues), 5))
+	for _, q := range m.side.queues {
+		label := q.ItemKey
+		if q.TargetLevel > 0 {
+			label = fmt.Sprintf("%s L%d", label, q.TargetLevel)
+		} else if q.Count > 0 {
+			label = fmt.Sprintf("%s x%d", label, q.Count)
+		}
+		remaining := formatRemaining(q.FinishedAt.Sub(now))
+		rows = append(rows, clampLine(fmt.Sprintf("▸ %s %-14s %s", queueTypeCode(q.QueueType), label, remaining), width-2))
+		if len(rows) == 5 {
+			break
+		}
+	}
+	return rows
+}
+
+func queueTypeCode(queueType string) string {
+	switch queueType {
+	case "building":
+		return "B"
+	case "research":
+		return "R"
+	case "ship":
+		return "S"
+	case "defense":
+		return "D"
+	default:
+		if queueType == "" {
+			return "?"
+		}
+		return strings.ToUpper(queueType[:1])
+	}
+}
+
+func (m consoleModel) renderFleetRows(width int) []string {
+	if len(m.side.fleets) == 0 {
+		return []string{"no active fleets"}
+	}
+	now := time.Now()
+	rows := make([]string, 0, min(len(m.side.fleets), 4))
+	for _, f := range m.side.fleets {
+		when := f.ArrivalAt
+		if f.State == "returning" && f.ReturnAt != nil {
+			when = *f.ReturnAt
+		}
+		rows = append(rows, clampLine(fmt.Sprintf("▸ %s %s %d:%d:%d %s", f.Mission, f.State, f.TargetGalaxy, f.TargetSystem, f.TargetPosition, formatRemaining(when.Sub(now))), width-2))
+		if len(rows) == 4 {
+			break
+		}
+	}
+	return rows
+}
+
+func (m consoleModel) renderMessageRows(width int) []string {
+	if len(m.side.messages) == 0 {
+		return nil
+	}
+	rows := make([]string, 0, min(len(m.side.messages), 4))
+	for _, msg := range m.side.messages {
+		prefix := " "
+		if !msg.Read {
+			prefix = "*"
+		}
+		rows = append(rows, clampLine(fmt.Sprintf("%s #%d %s", prefix, msg.ID, msg.Subject), width-2))
+		if len(rows) == 4 {
+			break
+		}
+	}
+	return rows
+}
+
+func writeSection(b *strings.Builder, width int, title string, rows []string) {
+	b.WriteString("\n")
+	b.WriteString(accentOrange().Render(title))
+	b.WriteByte('\n')
+	for _, row := range rows {
+		b.WriteString(mutedStyle().Render("  " + clampLine(row, width-2)))
+		b.WriteByte('\n')
+	}
+}
+
+func messageSectionTitle(messages []svc.Message) string {
+	if len(messages) == 0 {
+		return "MESSAGES (none)"
+	}
+	unread := 0
+	for _, msg := range messages {
+		if !msg.Read {
+			unread++
+		}
+	}
+	if unread > 0 {
+		return fmt.Sprintf("MESSAGES (%d new)", unread)
+	}
+	return fmt.Sprintf("MESSAGES (%d)", len(messages))
+}
+
+func formatRemaining(d time.Duration) string {
+	if d <= 0 {
+		return "done"
+	}
+	d = d.Round(time.Second)
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm%02ds", int(d.Minutes()), int(d.Seconds())%60)
+	}
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	return fmt.Sprintf("%dh%02dm", h, m)
 }
 
 func (m *consoleModel) refreshSuggestions() {

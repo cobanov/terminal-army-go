@@ -110,9 +110,19 @@ func TestConsoleCockpitViewContainsMajorRegions(t *testing.T) {
 		width:  140,
 		height: 42,
 		log:    []string{"resources", "metal_mine 11"},
+		side: consoleSideState{
+			planetID: 1,
+			queues: []svc.QueueItem{{
+				ID:          9,
+				QueueType:   "building",
+				ItemKey:     "metal_mine",
+				TargetLevel: 12,
+				FinishedAt:  now.Add(2 * time.Minute),
+			}},
+		},
 	}
 	view := model.View()
-	for _, want := range []string{"PLANET", "RESEARCH", "FLEET", "PLANETS", "QUEUES", "terminal.army", "Homeworld", "M 209.0k"} {
+	for _, want := range []string{"PLANET", "RESEARCH", "FLEET", "PLANETS", "QUEUES (1/5)", "metal_mine L12", "terminal.army", "Homeworld", "M 209.0k"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("cockpit view missing %q\n%s", want, view)
 		}
