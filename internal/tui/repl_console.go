@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/cobanov/terminal-army-go/internal/game"
 	"github.com/cobanov/terminal-army-go/internal/svc"
 	"github.com/cobanov/terminal-army-go/internal/tui/client"
 )
@@ -330,8 +331,12 @@ func (m consoleModel) renderTopBar(width int) string {
 		left += accentOrange().Render(p.Name)
 		left += fmt.Sprintf(" %s", accentYellow().Render(fmt.Sprintf("%d:%d:%d", p.Galaxy, p.System, p.Position)))
 		mid = mutedStyle().Render(fmt.Sprintf("fields %d/%d · temp %d/%d°C", p.FieldsUsed, p.FieldsTotal, p.TempMin, p.TempMax))
+		energyProduced := p.EnergyProduced
+		energyUsed := p.EnergyUsed
 		rates := ""
 		if m.side.production != nil {
+			energyProduced = m.side.production.EnergyProduced
+			energyUsed = m.side.production.EnergyUsed
 			rates = mutedStyle().Render(fmt.Sprintf("  +%.0f/%.0f/%.0f/h", m.side.production.MetalPerHour, m.side.production.CrystalPerHour, m.side.production.DeuteriumPerHour))
 		}
 		res = fmt.Sprintf("M %s   C %s   D %s%s   E %s",
@@ -339,7 +344,7 @@ func (m consoleModel) renderTopBar(width int) string {
 			accentCyan().Render(formatCompact(p.Crystal)),
 			accentMagenta().Render(formatCompact(p.Deuterium)),
 			rates,
-			energyStyle(p.EnergyProduced-p.EnergyUsed).Render(fmt.Sprintf("%+d", p.EnergyProduced-p.EnergyUsed)),
+			energyStyle(energyProduced-energyUsed).Render(fmt.Sprintf("%+d", energyProduced-energyUsed)),
 		)
 	}
 	right := accentGreen().Render(time.Now().Format("15:04:05")) + mutedStyle().Render("  ● 1 online   0 def")
@@ -377,11 +382,19 @@ func (m consoleModel) renderPlanetCard(width, height int) string {
 	crystalRate := "+?/h"
 	deutRate := "+?/h"
 	factor := ""
+	energyProduced := p.EnergyProduced
+	energyUsed := p.EnergyUsed
+	warning := ""
 	if m.side.production != nil {
 		metalRate = fmt.Sprintf("+%.0f/h", m.side.production.MetalPerHour)
 		crystalRate = fmt.Sprintf("+%.0f/h", m.side.production.CrystalPerHour)
 		deutRate = fmt.Sprintf("+%.0f/h", m.side.production.DeuteriumPerHour)
 		factor = mutedStyle().Render(fmt.Sprintf("  (%.2fx)", m.side.production.ProductionFactor))
+		energyProduced = m.side.production.EnergyProduced
+		energyUsed = m.side.production.EnergyUsed
+		if m.side.production.ProductionFactor < 1 && m.side.production.EnergyUsed > 0 {
+			warning = errorStyle().Render("energy deficit; build solar_plant")
+		}
 	}
 	globe := renderPlanetGlobe(p.Code, p.Position, min(18, max(12, width/5)), min(9, max(7, height-1)))
 	rows := []string{
@@ -392,7 +405,10 @@ func (m consoleModel) renderPlanetCard(width, height int) string {
 		fmt.Sprintf("crystal   %s   %s", accentCyan().Render(formatCompact(p.Crystal)), mutedStyle().Render(crystalRate)),
 		fmt.Sprintf("deut      %s   %s", accentMagenta().Render(formatCompact(p.Deuterium)), mutedStyle().Render(deutRate)),
 		"",
-		fmt.Sprintf("energy    prod %d / used %d    bal %s%s", p.EnergyProduced, p.EnergyUsed, energyStyle(p.EnergyProduced-p.EnergyUsed).Render(fmt.Sprintf("%+d", p.EnergyProduced-p.EnergyUsed)), factor),
+		fmt.Sprintf("energy    prod %d / used %d    bal %s%s", energyProduced, energyUsed, energyStyle(energyProduced-energyUsed).Render(fmt.Sprintf("%+d", energyProduced-energyUsed)), factor),
+	}
+	if warning != "" {
+		rows = append(rows, warning)
 	}
 	infoW := max(24, width-lipgloss.Width(globe)-4)
 	info := clampBlock(strings.Join(rows, "\n"), infoW, height)
@@ -481,7 +497,7 @@ func (m consoleModel) renderRight(width int) string {
 	}
 	writeSection(&b, width, fmt.Sprintf("QUEUES (%d/5)", len(m.side.queues)), m.renderQueueRows(width))
 	writeSection(&b, width, fmt.Sprintf("MISSIONS (%d)", len(m.side.fleets)), m.renderFleetRows(width))
-	writeSection(&b, width, "QUESTS [10/15]", []string{"▸ Send your first fleet"})
+	writeSection(&b, width, "QUESTS", m.renderQuestRows(width))
 	writeSection(&b, width, messageSectionTitle(m.side.messages), m.renderMessageRows(width))
 	if m.side.err != nil {
 		writeSection(&b, width, "SYNC", []string{"queue unavailable"})
@@ -509,6 +525,29 @@ func (m consoleModel) renderQueueRows(width int) []string {
 		}
 	}
 	return rows
+}
+
+func (m consoleModel) renderQuestRows(width int) []string {
+	if m.side.production != nil && m.side.production.ProductionFactor < 1 && m.side.production.EnergyUsed > 0 {
+		return []string{
+			clampLine("▸ Build Solar Plant", width-2),
+			clampLine("  /upgrade solar_plant", width-2),
+		}
+	}
+	p := m.currentPlanet()
+	if p == nil {
+		return []string{"no planet"}
+	}
+	if p.Buildings[string(game.BuildingMetalMine)] < 5 {
+		return []string{"▸ Build Metal Mine L5"}
+	}
+	if p.Buildings[string(game.BuildingCrystalMine)] < 3 {
+		return []string{"▸ Build Crystal Mine L3"}
+	}
+	if p.Buildings[string(game.BuildingSolarPlant)] < 5 {
+		return []string{"▸ Build Solar Plant L5"}
+	}
+	return []string{"▸ Open /quest"}
 }
 
 func queueTypeCode(queueType string) string {

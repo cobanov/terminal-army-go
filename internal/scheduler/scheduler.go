@@ -84,7 +84,7 @@ func (s *Scheduler) queueSweep(ctx context.Context) {
 			}
 			if err := qtx.MarkQueueApplied(ctx, item.ID); err != nil {
 				slog.Error("mark applied failed", "id", item.ID, "err", err)
-				continue
+				return err
 			}
 			s.broadcast(item)
 		}

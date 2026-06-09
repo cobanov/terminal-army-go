@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/cobanov/terminal-army-go/internal/game"
 	"github.com/cobanov/terminal-army-go/internal/store"
 )
 
@@ -134,8 +135,27 @@ func (s *PlanetService) toPublic(ctx context.Context, row *store.Planet) (*Plane
 	ships, _ := s.app.Queries.ListShipsForPlanet(ctx, row.ID)
 	def, _ := s.app.Queries.ListDefensesForPlanet(ctx, row.ID)
 
-	// EnergyUsed / EnergyProduced are derived at production-report time so we
-	// can keep the row narrow. The overview UI calls Production for that.
+	energyProduced := 0
+	energyUsed := 0
+	universe, err := s.app.Queries.GetUniverse(ctx, row.UniverseID)
+	if err != nil {
+		return nil, err
+	}
+	researches, err := s.app.Queries.ListResearchesForUser(ctx, row.OwnerUserID)
+	if err != nil {
+		return nil, err
+	}
+	report := game.ComputePlanetProduction(
+		toBuildingMap(buildings),
+		toTechMap(researches),
+		row.TempMin, row.TempMax,
+		game.MetalBonusByPosition[row.Position],
+		game.CrystalBonusByPosition[row.Position],
+		float64(universe.SpeedEconomy),
+	)
+	energyProduced = report.EnergyProduced
+	energyUsed = report.EnergyConsumed
+
 	out := &Planet{
 		ID:                     row.ID,
 		Code:                   row.Code,
@@ -152,6 +172,8 @@ func (s *PlanetService) toPublic(ctx context.Context, row *store.Planet) (*Plane
 		Metal:                  row.Metal,
 		Crystal:                row.Crystal,
 		Deuterium:              row.Deuterium,
+		EnergyUsed:             energyUsed,
+		EnergyProduced:         energyProduced,
 		ResourcesLastUpdatedAt: row.ResourcesLastUpdatedAt,
 		Buildings:              buildings,
 	}

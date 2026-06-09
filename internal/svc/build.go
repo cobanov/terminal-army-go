@@ -57,14 +57,6 @@ func (s *BuildService) QueueBuilding(ctx context.Context, userID, planetID int64
 			return err
 		}
 
-		count, err := qtx.CountActiveQueueForPlanet(ctx, planet.ID)
-		if err != nil {
-			return err
-		}
-		if count >= game.BuildQueueMaxActive {
-			return ErrQueueBusy
-		}
-
 		buildings, err := qtx.ListBuildingsForPlanet(ctx, planet.ID)
 		if err != nil {
 			return err
@@ -79,6 +71,13 @@ func (s *BuildService) QueueBuilding(ctx context.Context, userID, planetID int64
 		pending, err := qtx.ListActiveQueueForPlanet(ctx, planet.ID)
 		if err != nil {
 			return err
+		}
+		pending, err = repairCompletedBuildingQueues(ctx, qtx, buildings, pending)
+		if err != nil {
+			return err
+		}
+		if len(pending) >= game.BuildQueueMaxActive {
+			return ErrQueueBusy
 		}
 		baseLevel := buildings[string(bt)]
 		for _, q := range pending {
@@ -170,9 +169,31 @@ func (s *BuildService) PlanetQueues(ctx context.Context, userID, planetID int64)
 	if err != nil {
 		return nil, err
 	}
+	buildings, err := s.app.Queries.ListBuildingsForPlanet(ctx, planetID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err = repairCompletedBuildingQueues(ctx, s.app.Queries, buildings, rows)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]QueueItem, 0, len(rows))
 	for i := range rows {
 		out = append(out, *queueItemToPublic(&rows[i]))
+	}
+	return out, nil
+}
+
+func repairCompletedBuildingQueues(ctx context.Context, qtx *store.Queries, buildings map[string]int, rows []store.QueueItem) ([]store.QueueItem, error) {
+	out := rows[:0]
+	for _, row := range rows {
+		if row.QueueType == "building" && row.TargetLevel > 0 && buildings[row.ItemKey] >= row.TargetLevel {
+			if err := qtx.MarkQueueApplied(ctx, row.ID); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		out = append(out, row)
 	}
 	return out, nil
 }

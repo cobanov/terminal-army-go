@@ -404,6 +404,15 @@ func (r *replSession) queueBuilding(ctx context.Context, args []string) error {
 		return r.client.QueueBuilding(ctx, p.ID, args[0])
 	})
 	if err != nil {
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) && strings.Contains(apiErr.Message, "insufficient resources") && args[0] != string(game.BuildingSolarPlant) {
+			prod, prodErr := withTimeout(ctx, func(ctx context.Context) (*svc.ProductionReport, error) {
+				return r.client.GetProduction(ctx, p.ID)
+			})
+			if prodErr == nil && prod.ProductionFactor < 1 && prod.EnergyUsed > 0 {
+				return fmt.Errorf("%w; energy deficit stalls mines - try /upgrade solar_plant", err)
+			}
+		}
 		return err
 	}
 	r.printf("queued %s level %d, finishes %s\n", item.ItemKey, item.TargetLevel, item.FinishedAt.Local().Format(time.Kitchen))
@@ -751,12 +760,25 @@ func (r *replSession) quest(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if p.Buildings[string(game.BuildingMetalMine)] == 0 {
-		r.println("current quest: build a metal mine with /upgrade metal_mine")
+	prod, _ := withTimeout(ctx, func(ctx context.Context) (*svc.ProductionReport, error) {
+		return r.client.GetProduction(ctx, p.ID)
+	})
+	if prod != nil && prod.ProductionFactor < 1 && prod.EnergyUsed > 0 {
+		r.println("current quest: build solar power with /upgrade solar_plant")
+		r.printf("energy deficit: prod %d / used %d, mines are throttled to %.0f%%\n",
+			prod.EnergyProduced, prod.EnergyUsed, prod.ProductionFactor*100)
 		return nil
 	}
-	if p.Buildings[string(game.BuildingCrystalMine)] == 0 {
-		r.println("current quest: build a crystal mine with /upgrade crystal_mine")
+	if p.Buildings[string(game.BuildingMetalMine)] < 5 {
+		r.println("current quest: build metal mine to level 5 with /upgrade metal_mine")
+		return nil
+	}
+	if p.Buildings[string(game.BuildingCrystalMine)] < 3 {
+		r.println("current quest: build crystal mine to level 3 with /upgrade crystal_mine")
+		return nil
+	}
+	if p.Buildings[string(game.BuildingSolarPlant)] < 5 {
+		r.println("current quest: build solar plant to level 5 with /upgrade solar_plant")
 		return nil
 	}
 	if p.Buildings[string(game.BuildingResearchLab)] == 0 {
