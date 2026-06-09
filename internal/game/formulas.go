@@ -29,14 +29,15 @@ func CrystalMineProduction(level int, speed, positionBonus float64, plasmaTech i
 }
 
 // DeuteriumSynthesizerProduction returns hourly deuterium output. Cooler
-// planets produce more.
+// planets produce more. The OGame Wiki formula uses average planet
+// temperature, not max temperature.
 // Source: https://ogame.fandom.com/wiki/Deuterium_Synthesizer
-func DeuteriumSynthesizerProduction(level, tempMax int, speed float64, plasmaTech int) float64 {
+func DeuteriumSynthesizerProduction(level, avgTemp int, speed float64, plasmaTech int) float64 {
 	if level <= 0 {
 		return 0
 	}
 	return 10 * float64(level) * math.Pow(1.1, float64(level)) *
-		(1.28 - 0.002*float64(tempMax)) * speed * (1 + float64(plasmaTech)*0.0033)
+		(1.36 - 0.004*float64(avgTemp)) * speed * (1 + float64(plasmaTech)*0.0033)
 }
 
 // BasePassiveProduction is the small baseline output every planet receives,
@@ -56,17 +57,13 @@ func SolarPlantOutput(level int) int {
 	return int(math.Floor(20 * float64(level) * math.Pow(1.1, float64(level))))
 }
 
-// SolarSatelliteOutput returns total satellite energy. Per-unit output is
-// capped at SolarSatelliteMax (65).
+// SolarSatelliteOutput returns total satellite energy.
 // Source: https://ogame.fandom.com/wiki/Solar_Satellite
 func SolarSatelliteOutput(count, avgTemp int) int {
 	if count <= 0 {
 		return 0
 	}
 	perUnit := int(math.Floor(float64(avgTemp+160) / 6.0))
-	if perUnit > SolarSatelliteMax {
-		perUnit = SolarSatelliteMax
-	}
 	if perUnit < 0 {
 		perUnit = 0
 	}
@@ -83,15 +80,19 @@ func FusionReactorOutput(level, energyTech int) int {
 }
 
 // FusionDeutConsumption is the hourly deuterium burn of a fusion reactor.
-func FusionDeutConsumption(level int) int {
+// The Wiki notes that the negative deuterium value rounds down; as a positive
+// consumption amount that is equivalent to rounding up.
+func FusionDeutConsumption(level int, speed float64) int {
 	if level <= 0 {
 		return 0
 	}
-	return int(math.Floor(10 * float64(level) * math.Pow(1.1, float64(level))))
+	return int(math.Ceil(10 * speed * float64(level) * math.Pow(1.1, float64(level))))
 }
 
 // MineEnergyConsumption is the energy each mine consumes per hour:
-// energy = floor(coeff * level * 1.1^level), with coeff from MineEnergyCoeff.
+// energy = ceil(coeff * level * 1.1^level), with coeff from MineEnergyCoeff.
+// The displayed formula uses floor, but the Wiki's tested tables note that
+// energy use is rounded up to match in-game values.
 // Source: https://ogame.fandom.com/wiki/Metal_Mine
 func MineEnergyConsumption(b BuildingType, level int) int {
 	if level <= 0 {
@@ -101,7 +102,33 @@ func MineEnergyConsumption(b BuildingType, level int) int {
 	if !ok {
 		return 0
 	}
-	return int(math.Floor(float64(coeff) * float64(level) * math.Pow(1.1, float64(level))))
+	return int(math.Ceil(float64(coeff) * float64(level) * math.Pow(1.1, float64(level))))
+}
+
+// ActiveCrawlerCount returns how many crawlers can work on a planet. OGame caps
+// working crawlers by total mine levels * 8.
+// Source: https://ogame.fandom.com/wiki/Crawler
+func ActiveCrawlerCount(count, metalMineLevel, crystalMineLevel, deutSynthLevel int) int {
+	if count <= 0 {
+		return 0
+	}
+	limit := (metalMineLevel + crystalMineLevel + deutSynthLevel) * 8
+	if limit < 0 {
+		return 0
+	}
+	if count > limit {
+		return limit
+	}
+	return count
+}
+
+// CrawlerEnergyConsumption returns the hourly energy used by working crawlers.
+// The Crawler page's payback formula prices 50 energy per crawler.
+func CrawlerEnergyConsumption(activeCrawlerCount int) int {
+	if activeCrawlerCount <= 0 {
+		return 0
+	}
+	return activeCrawlerCount * 50
 }
 
 // -------- Build / research costs ------------------------------------------

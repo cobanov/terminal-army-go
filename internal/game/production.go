@@ -42,24 +42,28 @@ func ComputePlanetProduction(
 	deutLvl := buildings[BuildingDeuteriumSynthesizer]
 
 	baseM, baseC, baseD := BasePassiveProduction(speed)
+	avgT := AvgTemp(tempMin, tempMax)
 	grossMetal := baseM + MetalMineProduction(metalLvl, speed, metalPositionBonus, plasma)
 	grossCrystal := baseC + CrystalMineProduction(crystalLvl, speed, crystalPositionBonus, plasma)
-	grossDeuterium := baseD + DeuteriumSynthesizerProduction(deutLvl, tempMax, speed, plasma)
+	grossDeuterium := baseD + DeuteriumSynthesizerProduction(deutLvl, avgT, speed, plasma)
+
+	crawlerCount := buildings[BuildingCrawler]
+	activeCrawlers := ActiveCrawlerCount(crawlerCount, metalLvl, crystalLvl, deutLvl)
 
 	energyConsumed := MineEnergyConsumption(BuildingMetalMine, metalLvl) +
 		MineEnergyConsumption(BuildingCrystalMine, crystalLvl) +
-		MineEnergyConsumption(BuildingDeuteriumSynthesizer, deutLvl)
+		MineEnergyConsumption(BuildingDeuteriumSynthesizer, deutLvl) +
+		CrawlerEnergyConsumption(activeCrawlers)
 
 	solarLvl := buildings[BuildingSolarPlant]
 	fusionLvl := buildings[BuildingFusionReactor]
 	satCount := buildings[BuildingSolarSatellite]
-	avgT := AvgTemp(tempMin, tempMax)
 
 	energyProduced := SolarPlantOutput(solarLvl) +
 		SolarSatelliteOutput(satCount, avgT) +
 		FusionReactorOutput(fusionLvl, energyTech)
 
-	fusionDeut := float64(FusionDeutConsumption(fusionLvl))
+	fusionDeut := float64(FusionDeutConsumption(fusionLvl, speed))
 	grossDeuterium = math.Max(0, grossDeuterium-fusionDeut)
 
 	productionFactor := 1.0
@@ -69,14 +73,13 @@ func ComputePlanetProduction(
 
 	netMetalMine := (grossMetal - baseM) * productionFactor
 	netCrystalMine := (grossCrystal - baseC) * productionFactor
-	deutMineRaw := DeuteriumSynthesizerProduction(deutLvl, tempMax, speed, plasma)
+	deutMineRaw := DeuteriumSynthesizerProduction(deutLvl, avgT, speed, plasma)
 	netDeutMine := deutMineRaw * productionFactor
 
 	// Source: https://ogame.fandom.com/wiki/Crawler - each crawler adds +0.02%
-	// mine output, capped at +50%. Applies only to mine output, not to the
-	// base passive trickle.
-	crawlerCount := buildings[BuildingCrawler]
-	crawlerBonus := math.Min(0.5, float64(crawlerCount)*0.0002)
+	// mine output. Working crawlers are capped by total mine levels * 8, and
+	// the bonus applies only to mine output, not to the base passive trickle.
+	crawlerBonus := float64(activeCrawlers) * 0.0002
 	if crawlerBonus > 0 {
 		netMetalMine *= 1 + crawlerBonus
 		netCrystalMine *= 1 + crawlerBonus
