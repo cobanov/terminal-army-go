@@ -1,8 +1,9 @@
 {{define "content"}}
 <h2>Sign up</h2>
 <p class="muted">3-32 chars username (letters, digits, underscore, dash). Password at least 8 chars.</p>
-<form method="post" action="/signup" autocomplete="on">
+<form method="post" action="/signup{{if .Form.code}}?code={{.Form.code}}{{end}}" autocomplete="on">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
+  {{if .Form.code}}<input type="hidden" name="code" value="{{.Form.code}}">{{end}}
   <label for="username">Username</label>
   <input id="username" name="username" type="text" required minlength="3" maxlength="32" value="{{.Form.username}}" autofocus>
   <label for="email">Email</label>
@@ -11,5 +12,5 @@
   <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password">
   <button type="submit">Create account</button>
 </form>
-<p class="muted">Already have an account? <a href="/login">Log in</a>.</p>
+<p class="muted">Already have an account? <a href="/login{{if .Form.code}}?code={{.Form.code}}{{end}}">Log in</a>.</p>
 {{end}}

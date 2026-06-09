@@ -20,16 +20,17 @@ of that into:
 - one Postgres database
 - no third-party broker, no extra runtime, no JS toolchain
 
-You ship the binary, point it at Postgres, and it serves HTTP, WebSocket, the
-queue scheduler, the TUI, and the admin CLI from the same image.
+You ship the binary, point it at Postgres, and it serves HTTP, the queue
+scheduler, the terminal clients, and the admin CLI from the same image.
 
 ## What ships in the binary
 
 `tarmy` is a Cobra root command with four subcommand trees:
 
 ```
-tarmy serve                 run HTTP/WebSocket API + queue scheduler
-tarmy play [--server URL]   launch the Bubble Tea TUI client
+tarmy serve                 run HTTP API + queue scheduler
+tarmy [--remote URL]        launch the slash-command terminal client
+tarmy play [--server URL]   launch the screen-based Bubble Tea client
 tarmy migrate up|down|version
 tarmy admin seed-universe   create the default universe (idempotent)
 tarmy admin promote <user>  grant the admin role
@@ -55,8 +56,8 @@ docker compose exec tarmy tarmy admin seed-universe
 ```
 
 The server is now on `http://localhost:8080`. The migrate service runs once
-and exits; the `tarmy` service keeps the API, WebSocket hub, and queue
-scheduler online. See `docker-compose.yml` for the full env contract.
+and exits; the `tarmy` service keeps the API and queue scheduler online. See
+`docker-compose.yml` for the full env contract.
 
 To make the first user an admin:
 
@@ -71,8 +72,12 @@ If somebody else is running the server and you only want to play:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cobanov/terminal-army-go/main/install.sh | bash
 
-tarmy play --server https://your-friends-server.example
+tarmy --remote https://your-friends-server.example
 ```
+
+For the public shard, just run `tarmy`; it defaults to
+`https://terminal.army`, opens a browser sign-in URL, then returns you to the
+slash-command terminal client.
 
 The install script picks the right binary for your OS and CPU (Linux or
 macOS, amd64 or arm64), verifies its SHA256 if the release ships one, and
@@ -86,7 +91,7 @@ cp .env.example .env
 make build
 ./tarmy migrate up
 ./tarmy serve &
-./tarmy play
+./tarmy --remote http://localhost:8080
 ```
 
 `make` targets you will likely use:
@@ -125,13 +130,13 @@ Everything else has a sensible default, including the seed-universe shape
 `Config`. `internal/store` holds the pgx pool, hand-written SQL queries, and
 the embedded golang-migrate migrations. `internal/svc` is the service layer
 (one file per domain: auth, planet, build, research, fleet, alliance, etc.).
-`internal/httpapi` mounts the chi-based REST router and the WebSocket
-endpoint. `internal/web` serves the HTML signup, login, alliance, and admin
-pages (html/template + embed.FS). `internal/scheduler` polls the build and
-fleet queues with `FOR UPDATE SKIP LOCKED`. `internal/tui` is the Bubble Tea
-client. `internal/ws` is the WebSocket hub. `internal/game` is the pure-Go
-formula library (no DB, no HTTP) sourced from the OGame Fandom Wiki and is
-the only place where game math lives.
+`internal/httpapi` mounts the chi-based REST router. `internal/web` serves
+the HTML signup, login, alliance, and admin pages (html/template + embed.FS).
+`internal/scheduler` polls the build and fleet queues with `FOR UPDATE SKIP
+LOCKED`. `internal/tui` hosts the default slash-command client plus the
+optional Bubble Tea screen client. `internal/game` is the pure-Go formula
+library (no DB, no HTTP) sourced from the OGame Fandom Wiki and is the only
+place where game math lives.
 
 For a complete feature-by-feature map against the Python prototype, see
 [`docs/COVERAGE.md`](docs/COVERAGE.md).
@@ -182,16 +187,16 @@ internal/
   auth/                     JWT signer + chi auth middleware
   config/                   env -> typed Config loader
   game/                     pure-Go formulas, constants, tech tree
-  httpapi/                  chi router + REST + WebSocket mount
+  httpapi/                  chi router + REST mount
   scheduler/                queue completion + fleet arrival worker
   store/                    pgx pool, queries, embedded migrations
   svc/                      service layer (one file per game domain)
   svc/admin/                admin CLI implementations
-  tui/                      Bubble Tea client (login -> overview -> ...)
+  tui/                      slash-command client + optional Bubble Tea client
   util/                     small helpers (random codes, time)
   version/                  ldflags-injected version metadata
   web/                      signup, login, alliance, admin HTML surface
-  ws/                       WebSocket hub
+  ws/                       placeholder event sink for future push updates
 docs/COVERAGE.md            feature parity matrix vs Python prototype
 docker-compose.yml          postgres + tarmy-migrate + tarmy
 Dockerfile                  multi-stage build, distroless runtime
@@ -200,7 +205,7 @@ install.sh                  one-line binary installer
 
 ## Status
 
-MVP-complete: registration, login, universe, planet, lazy resource update,
+MVP-complete: browser auth, registration, login, universe, planet, lazy resource update,
 buildings + research + shipyard + defense queues, scheduler, galaxy view,
 fleet movements, combat resolver, messages, reports, alliance, leaderboard,
 stats, presence, TUI client, web signup/login/alliance/admin, full admin

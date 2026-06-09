@@ -49,6 +49,37 @@ func (c *Client) Logout(ctx context.Context) error {
 	return c.do(ctx, "POST", "/api/v1/auth/logout", nil, nil)
 }
 
+// StartDeviceAuth begins the browser auth flow used by the default CLI.
+func (c *Client) StartDeviceAuth(ctx context.Context) (*svc.DeviceAuthStart, error) {
+	out := &svc.DeviceAuthStart{}
+	if err := c.do(ctx, "POST", "/auth/start", nil, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PollDeviceAuth returns a token once the browser flow completes.
+func (c *Client) PollDeviceAuth(ctx context.Context, code string) (*svc.DeviceAuthPoll, error) {
+	body := map[string]string{"auth_code": code}
+	out := &svc.DeviceAuthPoll{}
+	if err := c.do(ctx, "POST", "/auth/poll", body, out); err != nil {
+		return nil, err
+	}
+	if out.Token == "" {
+		return nil, &APIError{Status: 202, Message: "pending"}
+	}
+	return out, nil
+}
+
+// AuthMe validates the token through the Python-compatible /auth/me route.
+func (c *Client) AuthMe(ctx context.Context) (*svc.User, error) {
+	out := &svc.User{}
+	if err := c.do(ctx, "GET", "/auth/me", nil, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Me returns the currently authenticated user.
 func (c *Client) Me(ctx context.Context) (*svc.User, error) {
 	out := &svc.User{}
@@ -246,6 +277,15 @@ func (c *Client) GetMessage(ctx context.Context, id int64) (*svc.Message, error)
 func (c *Client) DeleteMessage(ctx context.Context, id int64) error {
 	path := fmt.Sprintf("/api/v1/messages/%d", id)
 	return c.do(ctx, "DELETE", path, nil, nil)
+}
+
+// SendMessage sends an in-game player message by recipient username.
+func (c *Client) SendMessage(ctx context.Context, to, body string) (*svc.Message, error) {
+	out := &svc.Message{}
+	if err := c.do(ctx, "POST", "/api/v1/messages", map[string]string{"to": to, "body": body}, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // --- reports ---

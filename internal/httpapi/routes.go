@@ -23,6 +23,18 @@ func init() {
 			r.Post("/logout", authLogout(app))
 		})
 
+		r.Route("/auth", func(r chi.Router) {
+			r.Use(authThrottle.middleware)
+			r.Post("/start", deviceStart(app))
+			r.Post("/poll", devicePoll(app))
+		})
+		r.Route("/auth", func(r chi.Router) {
+			r.Use(auth.Middleware(app))
+			r.Get("/me", meHandler(app))
+		})
+
+		r.Get("/stats", publicStatsHandler(app))
+
 		// Authenticated API
 		r.Route("/api/v1", func(r chi.Router) {
 			r.Use(auth.Middleware(app))
@@ -58,6 +70,7 @@ func init() {
 
 			r.Route("/messages", func(r chi.Router) {
 				r.Get("/", listMessages(app))
+				r.Post("/", sendMessage(app))
 				r.Get("/{id}", getMessage(app))
 				r.Delete("/{id}", deleteMessage(app))
 			})

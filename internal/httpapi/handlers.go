@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -68,6 +69,42 @@ func authLogout(app *svc.App) http.HandlerFunc {
 			_ = app.Auth.Logout(r.Context(), tok)
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func deviceStart(app *svc.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		out, err := app.Auth.StartDeviceAuth(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+func devicePoll(app *svc.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			AuthCode string `json:"auth_code"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+		out, err := app.Auth.PollDeviceAuth(r.Context(), in.AuthCode)
+		if err != nil {
+			switch {
+			case errors.Is(err, svc.ErrDevicePending):
+				writeError(w, http.StatusAccepted, "pending")
+			case errors.Is(err, svc.ErrSessionExpired):
+				writeError(w, http.StatusGone, "auth code expired")
+			default:
+				writeError(w, http.StatusNotFound, "auth code not found")
+			}
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
 	}
 }
 
@@ -348,6 +385,26 @@ func listMessages(app *svc.App) http.HandlerFunc {
 	}
 }
 
+func sendMessage(app *svc.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uid := auth.UserIDFromContext(r.Context())
+		var in struct {
+			To   string `json:"to"`
+			Body string `json:"body"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+		m, err := app.Messages.Send(r.Context(), uid, in.To, in.Body)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, m)
+	}
+}
+
 func getMessage(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid := auth.UserIDFromContext(r.Context())
@@ -480,6 +537,17 @@ func leaderboardHandler(app *svc.App) http.HandlerFunc {
 func statsHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s, err := app.Stats.Overview(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, s)
+	}
+}
+
+func publicStatsHandler(app *svc.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s, err := app.Stats.PublicOverview(r.Context())
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return

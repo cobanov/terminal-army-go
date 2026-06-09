@@ -162,7 +162,7 @@ final_notes() {
 
 quick start:
   $BINARY_NAME --version
-  $BINARY_NAME play --server https://your-server.example.com
+  $BINARY_NAME
 
 server operators (requires Docker):
   git clone https://github.com/$REPO.git

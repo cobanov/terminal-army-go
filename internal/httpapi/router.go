@@ -18,6 +18,7 @@ func newRouter(app *svc.App, hub *ws.Hub) http.Handler {
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(securityHeaders)
 
+	r.Get("/health", healthHandler)
 	r.Get("/healthz", healthHandler)
 	r.Get("/readyz", readyHandler(app))
 

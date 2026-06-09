@@ -29,39 +29,51 @@ type AuthResult struct {
 	User  *User  `json:"user"`
 }
 
+// DeviceAuthStart is returned to the CLI before browser auth begins.
+type DeviceAuthStart struct {
+	AuthCode        string `json:"auth_code"`
+	ExpiresIn       int    `json:"expires_in"`
+	PollingInterval int    `json:"polling_interval"`
+}
+
+// DeviceAuthPoll is returned when browser auth has completed.
+type DeviceAuthPoll struct {
+	Token string `json:"token"`
+}
+
 // Universe is the public view of a game universe.
 type Universe struct {
-	ID             int64     `json:"id"`
-	Name           string    `json:"name"`
-	SpeedEconomy   int       `json:"speed_economy"`
-	SpeedFleet     int       `json:"speed_fleet"`
-	SpeedResearch  int       `json:"speed_research"`
-	GalaxiesCount  int       `json:"galaxies_count"`
-	SystemsCount   int       `json:"systems_count"`
-	PlayerCount    int       `json:"player_count"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID            int64     `json:"id"`
+	Name          string    `json:"name"`
+	SpeedEconomy  int       `json:"speed_economy"`
+	SpeedFleet    int       `json:"speed_fleet"`
+	SpeedResearch int       `json:"speed_research"`
+	GalaxiesCount int       `json:"galaxies_count"`
+	SystemsCount  int       `json:"systems_count"`
+	PlayerCount   int       `json:"player_count"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // Planet is the public view of a planet owned by the current user.
 type Planet struct {
-	ID                     int64     `json:"id"`
-	Code                   string    `json:"code"`
-	Name                   string    `json:"name"`
-	OwnerUserID            int64     `json:"owner_user_id"`
-	UniverseID             int64     `json:"universe_id"`
-	Galaxy                 int       `json:"galaxy"`
-	System                 int       `json:"system"`
-	Position               int       `json:"position"`
-	FieldsUsed             int       `json:"fields_used"`
-	FieldsTotal            int       `json:"fields_total"`
-	TempMin                int       `json:"temp_min"`
-	TempMax                int       `json:"temp_max"`
-	Metal                  float64   `json:"metal"`
-	Crystal                float64   `json:"crystal"`
-	Deuterium              float64   `json:"deuterium"`
-	EnergyUsed             int       `json:"energy_used"`
-	EnergyProduced         int       `json:"energy_produced"`
-	ResourcesLastUpdatedAt time.Time `json:"resources_last_updated_at"`
+	ID                     int64          `json:"id"`
+	Code                   string         `json:"code"`
+	Name                   string         `json:"name"`
+	OwnerUserID            int64          `json:"owner_user_id"`
+	UniverseID             int64          `json:"universe_id"`
+	Galaxy                 int            `json:"galaxy"`
+	System                 int            `json:"system"`
+	Position               int            `json:"position"`
+	FieldsUsed             int            `json:"fields_used"`
+	FieldsTotal            int            `json:"fields_total"`
+	TempMin                int            `json:"temp_min"`
+	TempMax                int            `json:"temp_max"`
+	Metal                  float64        `json:"metal"`
+	Crystal                float64        `json:"crystal"`
+	Deuterium              float64        `json:"deuterium"`
+	EnergyUsed             int            `json:"energy_used"`
+	EnergyProduced         int            `json:"energy_produced"`
+	ResourcesLastUpdatedAt time.Time      `json:"resources_last_updated_at"`
 	Buildings              map[string]int `json:"buildings"`
 	Ships                  map[string]int `json:"ships,omitempty"`
 	Defense                map[string]int `json:"defense,omitempty"`
@@ -69,16 +81,16 @@ type Planet struct {
 
 // ProductionReport summarises a planet's per-resource production rates.
 type ProductionReport struct {
-	PlanetID         int64   `json:"planet_id"`
-	MetalPerHour     float64 `json:"metal_per_hour"`
-	CrystalPerHour   float64 `json:"crystal_per_hour"`
-	DeuteriumPerHour float64 `json:"deuterium_per_hour"`
-	EnergyProduced   int     `json:"energy_produced"`
-	EnergyUsed       int     `json:"energy_used"`
-	ProductionFactor float64 `json:"production_factor"`
-	StorageCapMetal     int  `json:"storage_cap_metal"`
-	StorageCapCrystal   int  `json:"storage_cap_crystal"`
-	StorageCapDeuterium int  `json:"storage_cap_deuterium"`
+	PlanetID            int64   `json:"planet_id"`
+	MetalPerHour        float64 `json:"metal_per_hour"`
+	CrystalPerHour      float64 `json:"crystal_per_hour"`
+	DeuteriumPerHour    float64 `json:"deuterium_per_hour"`
+	EnergyProduced      int     `json:"energy_produced"`
+	EnergyUsed          int     `json:"energy_used"`
+	ProductionFactor    float64 `json:"production_factor"`
+	StorageCapMetal     int     `json:"storage_cap_metal"`
+	StorageCapCrystal   int     `json:"storage_cap_crystal"`
+	StorageCapDeuterium int     `json:"storage_cap_deuterium"`
 }
 
 // QueueItem is one row in a planet's build / shipyard / research queue.
@@ -102,14 +114,14 @@ type ResearchLevel struct {
 
 // FleetDispatchRequest is the body of POST /api/v1/fleet.
 type FleetDispatchRequest struct {
-	OriginPlanetID  int64          `json:"origin_planet_id"`
-	TargetGalaxy    int            `json:"target_galaxy"`
-	TargetSystem    int            `json:"target_system"`
-	TargetPosition  int            `json:"target_position"`
-	Mission         string         `json:"mission"`
-	Ships           map[string]int `json:"ships"`
-	Cargo           map[string]int `json:"cargo,omitempty"`
-	SpeedPercent    int            `json:"speed_percent,omitempty"`
+	OriginPlanetID int64          `json:"origin_planet_id"`
+	TargetGalaxy   int            `json:"target_galaxy"`
+	TargetSystem   int            `json:"target_system"`
+	TargetPosition int            `json:"target_position"`
+	Mission        string         `json:"mission"`
+	Ships          map[string]int `json:"ships"`
+	Cargo          map[string]int `json:"cargo,omitempty"`
+	SpeedPercent   int            `json:"speed_percent,omitempty"`
 }
 
 // Fleet is a public view of an in-flight or stationed fleet.
@@ -163,21 +175,34 @@ type Alliance struct {
 
 // LeaderboardEntry is one row in the global leaderboard.
 type LeaderboardEntry struct {
-	Rank      int    `json:"rank"`
-	UserID    int64  `json:"user_id"`
-	Username  string `json:"username"`
-	Score     int64  `json:"score"`
-	Alliance  string `json:"alliance,omitempty"`
+	Rank     int    `json:"rank"`
+	UserID   int64  `json:"user_id"`
+	Username string `json:"username"`
+	Score    int64  `json:"score"`
+	Alliance string `json:"alliance,omitempty"`
 }
 
 // StatsOverview is the response to /api/v1/stats.
 type StatsOverview struct {
-	Universes        int   `json:"universes"`
-	Players          int   `json:"players"`
-	Planets          int   `json:"planets"`
-	OnlinePlayers    int   `json:"online_players"`
-	FleetsInFlight   int   `json:"fleets_in_flight"`
-	UptimeSeconds    int64 `json:"uptime_seconds"`
+	Universes      int   `json:"universes"`
+	Players        int   `json:"players"`
+	Planets        int   `json:"planets"`
+	OnlinePlayers  int   `json:"online_players"`
+	FleetsInFlight int   `json:"fleets_in_flight"`
+	UptimeSeconds  int64 `json:"uptime_seconds"`
+}
+
+// PublicServerStats mirrors the Python lobby /stats shape used by existing
+// installers and terminal clients.
+type PublicServerStats struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	MaxUsers    int    `json:"max_users"`
+	Registered  int    `json:"registered"`
+	Online      int    `json:"online"`
+	Active24h   int    `json:"active_24h"`
+	Full        bool   `json:"full"`
+	Version     string `json:"version"`
 }
 
 // SystemPlanetView is one slot in a galaxy system view.

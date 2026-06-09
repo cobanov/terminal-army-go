@@ -81,6 +81,16 @@ func (q *Queries) CountUsers(ctx context.Context) (int, error) {
 	return n, err
 }
 
+// CountUsersSeenSince returns how many users have touched an authenticated
+// route since the given timestamp.
+func (q *Queries) CountUsersSeenSince(ctx context.Context, since time.Time) (int, error) {
+	var n int
+	err := q.db.QueryRow(ctx, `
+		SELECT COUNT(*) FROM users WHERE last_seen_at >= $1
+	`, since).Scan(&n)
+	return n, err
+}
+
 // SetUserRole writes the role column for a user. Used by the admin promote /
 // demote commands. Role values are validated at the call site (svc/admin
 // layer) so this query stays a plain UPDATE.

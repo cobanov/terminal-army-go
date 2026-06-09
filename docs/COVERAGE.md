@@ -51,11 +51,11 @@ wiki, that comment is the authoritative diff target.
 | Embedded migrations (golang-migrate)  | Done    | `internal/store/migrations`                         | Shipped via `go:embed`; `tarmy migrate up\|down\|version`             |
 | HTTP server (chi v5)                  | Done    | `internal/httpapi/server.go`                        | Graceful shutdown, request logger, recoverer, request ID              |
 | Structured logging (slog)             | Done    | `internal/httpapi/server.go`                        | JSON in prod (default), text optional via env                         |
-| WebSocket hub                         | Done    | `internal/ws/ws.go`                                 | Per-user fan-out, integrated with svc.EventSink                       |
+| WebSocket hub                         | Deferred| `internal/ws/ws.go`                                 | Placeholder event sink; clients poll for state changes in the MVP     |
 | Queue scheduler                       | Done    | `internal/scheduler/scheduler.go`                   | `FOR UPDATE SKIP LOCKED` for completion; configurable tick interval   |
 | Fleet arrival worker                  | Done    | `internal/scheduler/fleet.go`                       | Same locking pattern; broadcasts arrival events                       |
 | Lazy resource update                  | Done    | `internal/svc/resources.go`                         | Called on every read/write path; `resources_last_updated_at` advances |
-| Presence tracking                     | Done    | `internal/svc/presence.go`                          | In-memory, fed by HTTP middleware + WebSocket connect/disconnect      |
+| Presence tracking                     | Done    | `internal/svc/presence.go`                          | In-memory, fed by authenticated HTTP requests                         |
 | Rate limiting (per IP, token bucket)  | Done    | `internal/httpapi/ratelimit.go` + `internal/web/ratelimit.go` | Same shape on both surfaces (10 burst, 1/5s sustained)                |
 
 ## Authentication and accounts
@@ -94,6 +94,11 @@ wiki, that comment is the authoritative diff target.
 | `POST /api/v1/auth/register`          | Done    | Rate-limited per IP                                                   |
 | `POST /api/v1/auth/login`             | Done    | Rate-limited per IP                                                   |
 | `POST /api/v1/auth/logout`            | Done    | Revokes the device session                                            |
+| `POST /auth/start`                    | Done    | Python-compatible browser auth code for the CLI                       |
+| `POST /auth/poll`                     | Done    | CLI polls until browser login/signup binds a token                    |
+| `GET  /auth/me`                       | Done    | Python-compatible token validation route                              |
+| `GET  /health`                        | Done    | Python-compatible health alias                                        |
+| `GET  /stats`                         | Done    | Python-compatible public lobby stats                                  |
 | `GET  /api/v1/me`                     | Done    | Returns the current user + active planet snapshot                     |
 | `GET  /api/v1/universes`              | Done    | All universes the user can join                                       |
 | `POST /api/v1/universes/{id}/join`    | Done    | Creates the user's first planet in that universe                      |
@@ -115,7 +120,7 @@ wiki, that comment is the authoritative diff target.
 | `GET/POST /api/v1/alliance...`        | Done    | Lobby + create + detail + join + leave                                |
 | `GET  /api/v1/leaderboard`            | Done    | Top-N + caller rank                                                   |
 | `GET  /api/v1/stats`                  | Done    | Server-wide counters                                                  |
-| `GET  /api/v1/ws`                     | Done    | WebSocket upgrade, JWT in the `Sec-WebSocket-Protocol` header         |
+| `GET  /api/v1/ws`                     | Deferred| Returns 501 until push updates become useful                          |
 
 ## Web (HTML) surface
 

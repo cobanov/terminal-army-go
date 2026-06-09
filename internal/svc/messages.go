@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/cobanov/terminal-army-go/internal/store"
 )
@@ -12,10 +13,6 @@ import (
 // alliance actions. List/Get/Delete are user-scoped so a user can never read
 // or remove another player's inbox entries.
 //
-// The service intentionally does not expose a Send endpoint - all writes
-// today come from server-side flows. A future PlayerSend method would just
-// wrap qtx.InsertMessage with a sender id check.
-
 // List returns the user's inbox, newest first, capped at 200 rows.
 func (s *MessagesService) List(ctx context.Context, uid int64) ([]Message, error) {
 	rows, err := s.app.Queries.ListMessagesForUser(ctx, uid, 200)
@@ -27,6 +24,33 @@ func (s *MessagesService) List(ctx context.Context, uid int64) ([]Message, error
 		out = append(out, messageToPublic(&rows[i]))
 	}
 	return out, nil
+}
+
+// Send stores a player-to-player message. The sender is resolved from the
+// current session; the recipient is looked up by username.
+func (s *MessagesService) Send(ctx context.Context, senderID int64, recipientUsername, body string) (*Message, error) {
+	recipientUsername = strings.TrimSpace(recipientUsername)
+	body = strings.TrimSpace(body)
+	if recipientUsername == "" || body == "" {
+		return nil, errors.New("recipient and message body are required")
+	}
+	recipient, err := s.app.Queries.GetUserByUsername(ctx, recipientUsername)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if recipient.ID == senderID {
+		return nil, errors.New("cannot message yourself")
+	}
+	sid := senderID
+	row, err := s.app.Queries.InsertMessage(ctx, &sid, recipient.ID, "Message", body, "player")
+	if err != nil {
+		return nil, err
+	}
+	out := messageToPublic(row)
+	return &out, nil
 }
 
 // Get returns one inbox message and flips its read flag as a side effect.

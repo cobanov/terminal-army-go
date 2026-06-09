@@ -41,9 +41,18 @@ func indexHandler(app *svc.App) http.HandlerFunc {
 func signupHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		view := baseView(app, r, "sign up")
+		code := authCodeFromRequest(r)
+		view.Form = map[string]string{"code": code}
 
 		// Already logged in: skip the form and go straight to alliances.
 		if view.User != nil {
+			if code != "" {
+				if tok, err := sessionTokenFromRequest(r); err == nil && app.Auth.BindDeviceAuth(r.Context(), code, tok, view.User.ID) {
+					view.Flash = "authentication complete"
+					writePage(w, "terminal_success", view)
+					return
+				}
+			}
 			http.Redirect(w, r, "/alliance", http.StatusSeeOther)
 			return
 		}
@@ -62,7 +71,7 @@ func signupHandler(app *svc.App) http.HandlerFunc {
 		username := r.FormValue("username")
 		email := r.FormValue("email")
 		password := r.FormValue("password")
-		view.Form = map[string]string{"username": username, "email": email}
+		view.Form = map[string]string{"username": username, "email": email, "code": code}
 
 		res, err := app.Auth.Register(r.Context(), username, email, password)
 		if err != nil {
@@ -72,6 +81,17 @@ func signupHandler(app *svc.App) http.HandlerFunc {
 		}
 
 		setSessionCookie(w, r, res.Token)
+		if code != "" {
+			if !app.Auth.BindDeviceAuth(r.Context(), code, res.Token, res.User.ID) {
+				view.Error = "auth code invalid or expired; restart tarmy in terminal"
+				writePage(w, "signup", view)
+				return
+			}
+			view.User = res.User
+			view.Flash = "authentication complete"
+			writePage(w, "terminal_success", view)
+			return
+		}
 		http.Redirect(w, r, safeRedirect(r, "/alliance"), http.StatusSeeOther)
 	}
 }
@@ -82,8 +102,17 @@ func signupHandler(app *svc.App) http.HandlerFunc {
 func loginHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		view := baseView(app, r, "log in")
+		code := authCodeFromRequest(r)
+		view.Form = map[string]string{"code": code}
 
 		if view.User != nil {
+			if code != "" {
+				if tok, err := sessionTokenFromRequest(r); err == nil && app.Auth.BindDeviceAuth(r.Context(), code, tok, view.User.ID) {
+					view.Flash = "authentication complete"
+					writePage(w, "terminal_success", view)
+					return
+				}
+			}
 			http.Redirect(w, r, safeRedirect(r, "/alliance"), http.StatusSeeOther)
 			return
 		}
@@ -101,7 +130,7 @@ func loginHandler(app *svc.App) http.HandlerFunc {
 
 		username := r.FormValue("username")
 		password := r.FormValue("password")
-		view.Form = map[string]string{"username": username}
+		view.Form = map[string]string{"username": username, "code": code}
 
 		res, err := app.Auth.Login(r.Context(), username, password)
 		if err != nil {
@@ -111,6 +140,17 @@ func loginHandler(app *svc.App) http.HandlerFunc {
 		}
 
 		setSessionCookie(w, r, res.Token)
+		if code != "" {
+			if !app.Auth.BindDeviceAuth(r.Context(), code, res.Token, res.User.ID) {
+				view.Error = "auth code invalid or expired; restart tarmy in terminal"
+				writePage(w, "login", view)
+				return
+			}
+			view.User = res.User
+			view.Flash = "authentication complete"
+			writePage(w, "terminal_success", view)
+			return
+		}
 		http.Redirect(w, r, safeRedirect(r, "/alliance"), http.StatusSeeOther)
 	}
 }
@@ -284,6 +324,13 @@ func lookupCurrentAlliance(r *http.Request, app *svc.App, uid int64) *svc.Allian
 	}
 }
 
+func authCodeFromRequest(r *http.Request) string {
+	if c := r.URL.Query().Get("code"); c != "" {
+		return c
+	}
+	return r.FormValue("code")
+}
+
 // friendlyAuthError translates the AuthService sentinel errors to short
 // user-facing strings. Unknown errors are surfaced as-is.
 func friendlyAuthError(err error) string {
@@ -333,4 +380,3 @@ func writePage(w http.ResponseWriter, page string, data viewData) {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
 	}
 }
-

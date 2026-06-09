@@ -27,12 +27,12 @@ type viewData struct {
 	Now       time.Time
 
 	// page-specific payloads
-	Form       map[string]string
-	Alliances  []svc.Alliance
-	Alliance   *svc.Alliance
-	Current    *svc.Alliance
-	IsMember   bool
-	IsFounder  bool
+	Form      map[string]string
+	Alliances []svc.Alliance
+	Alliance  *svc.Alliance
+	Current   *svc.Alliance
+	IsMember  bool
+	IsFounder bool
 
 	// admin payloads
 	Stats          *svc.StatsOverview
@@ -46,13 +46,13 @@ type viewData struct {
 // We carry the friendly strings (rendered times, role label) so the template
 // stays trivial.
 type adminUserRow struct {
-	ID         int64
-	Username   string
-	Email      string
-	Role       string
-	Joined     string
-	LastSeen   string
-	IsSelf     bool
+	ID       int64
+	Username string
+	Email    string
+	Role     string
+	Joined   string
+	LastSeen string
+	IsSelf   bool
 }
 
 // adminUserPage carries pagination state for /admin/users.
@@ -78,6 +78,7 @@ var pageTemplates = map[string]string{
 	"index":            "templates/index.html",
 	"signup":           "templates/signup.html",
 	"login":            "templates/login.html",
+	"terminal_success": "templates/terminal_success.html",
 	"alliance_list":    "templates/alliance_list.html",
 	"alliance_detail":  "templates/alliance_detail.html",
 	"admin_dashboard":  "templates/admin_dashboard.html",

@@ -3,6 +3,7 @@ package svc
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -31,6 +32,12 @@ var (
 	ErrPasswordTooShort = errors.New("password must be at least 8 characters")
 	ErrInvalidLogin     = errors.New("invalid username or password")
 	ErrSessionExpired   = errors.New("session expired")
+	ErrDevicePending    = errors.New("pending")
+)
+
+const (
+	deviceAuthTTLSeconds      = 600
+	deviceAuthPollingInterval = 2
 )
 
 // Register creates a new user, signs an initial JWT, and stores the device
@@ -98,6 +105,62 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Au
 		return nil, ErrInvalidLogin
 	}
 	return s.issueSession(ctx, u.ID)
+}
+
+// StartDeviceAuth creates a short-lived auth code that the CLI can poll while
+// the user signs in through the browser.
+func (s *AuthService) StartDeviceAuth(ctx context.Context) (*DeviceAuthStart, error) {
+	code, err := newBrowserAuthCode()
+	if err != nil {
+		return nil, err
+	}
+	expiresAt := time.Now().UTC().Add(deviceAuthTTLSeconds * time.Second)
+	if _, err := s.app.Queries.CreatePendingDeviceSession(ctx, code, expiresAt); err != nil {
+		return nil, err
+	}
+	return &DeviceAuthStart{
+		AuthCode:        code,
+		ExpiresIn:       deviceAuthTTLSeconds,
+		PollingInterval: deviceAuthPollingInterval,
+	}, nil
+}
+
+// PollDeviceAuth returns the bound token once browser auth completes. A
+// pending code returns ErrDevicePending; an expired code is deleted.
+func (s *AuthService) PollDeviceAuth(ctx context.Context, code string) (*DeviceAuthPoll, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, store.ErrNotFound
+	}
+	row, err := s.app.Queries.GetDeviceSessionByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	if row.ExpiresAt.Before(now) {
+		_ = s.app.Queries.DeleteDeviceSessionByCode(ctx, code)
+		return nil, ErrSessionExpired
+	}
+	if row.Token == nil || *row.Token == "" {
+		return nil, ErrDevicePending
+	}
+	token := *row.Token
+	_ = s.app.Queries.DeleteDeviceSessionByCode(ctx, code)
+	return &DeviceAuthPoll{Token: token}, nil
+}
+
+// BindDeviceAuth attaches a newly issued JWT to a pending browser auth code.
+// It returns false when the code is absent, expired, or already consumed.
+func (s *AuthService) BindDeviceAuth(ctx context.Context, code, token string, userID int64) bool {
+	code = strings.TrimSpace(code)
+	if code == "" || token == "" || userID == 0 {
+		return false
+	}
+	session, err := s.app.Queries.GetDeviceSessionByToken(ctx, token)
+	if err != nil {
+		return false
+	}
+	return s.app.Queries.BindDeviceSessionToken(ctx, code, token, userID, session.ExpiresAt) == nil
 }
 
 // Logout deletes the device session row keyed by the bearer token. We do not
@@ -220,6 +283,14 @@ func newSessionCode() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+func newBrowserAuthCode() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 func validateUsername(name string) error {

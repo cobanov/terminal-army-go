@@ -3,6 +3,8 @@ package svc
 import (
 	"context"
 	"time"
+
+	"github.com/cobanov/terminal-army-go/internal/version"
 )
 
 // startedAt is captured when the binary boots so /stats can report uptime
@@ -53,5 +55,33 @@ func (s *StatsService) Overview(ctx context.Context) (*StatsOverview, error) {
 		OnlinePlayers:  online,
 		FleetsInFlight: fleets,
 		UptimeSeconds:  uptime,
+	}, nil
+}
+
+// PublicOverview returns the Python-compatible lobby stats shape served from
+// GET /stats. It is intentionally separate from /api/v1/stats so admin/TUI
+// callers can keep the richer Go-native counters.
+func (s *StatsService) PublicOverview(ctx context.Context) (*PublicServerStats, error) {
+	registered, err := s.app.Queries.CountUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	active, err := s.app.Queries.CountUsersSeenSince(ctx, time.Now().UTC().Add(-24*time.Hour))
+	if err != nil {
+		return nil, err
+	}
+	online := 0
+	if s.app.Presence != nil {
+		online = s.app.Presence.Count()
+	}
+	return &PublicServerStats{
+		Name:        s.app.Cfg.ServerName,
+		Description: s.app.Cfg.ServerDesc,
+		MaxUsers:    s.app.Cfg.ServerMaxUsers,
+		Registered:  registered,
+		Online:      online,
+		Active24h:   active,
+		Full:        s.app.Cfg.ServerMaxUsers > 0 && registered >= s.app.Cfg.ServerMaxUsers,
+		Version:     version.Version,
 	}, nil
 }
