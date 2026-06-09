@@ -76,7 +76,7 @@ tarmy --remote https://your-friends-server.example
 ```
 
 For the public shard, just run `tarmy`; it defaults to
-`https://terminal.army`, opens a browser sign-in URL, then returns you to the
+`https://go.terminal.army`, opens a browser sign-in URL, then returns you to the
 slash-command terminal client.
 
 The install script picks the right binary for your OS and CPU (Linux or

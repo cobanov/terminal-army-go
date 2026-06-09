@@ -1,6 +1,10 @@
 package tui
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/cobanov/terminal-army-go/internal/svc"
+)
 
 func TestParseCoord(t *testing.T) {
 	g, s, p, err := parseCoord("4:128:6")
@@ -36,4 +40,35 @@ func TestParseKVArgsSplitsShipsAndCargo(t *testing.T) {
 	if _, ok := ships["zero"]; ok {
 		t.Fatal("zero-value ship count should be ignored")
 	}
+}
+
+func TestSuggestionsForInput(t *testing.T) {
+	t.Run("slashless command", func(t *testing.T) {
+		got := suggestionsForInput("gal", nil)
+		if len(got) == 0 || got[0].value != "/galaxy " {
+			t.Fatalf("suggestionsForInput(gal) = %#v", got)
+		}
+	})
+
+	t.Run("building argument", func(t *testing.T) {
+		got := suggestionsForInput("/upgrade metal", nil)
+		if len(got) == 0 || got[0].value != "/upgrade metal_mine" {
+			t.Fatalf("suggestionsForInput(/upgrade metal) = %#v", got)
+		}
+	})
+
+	t.Run("ship build argument", func(t *testing.T) {
+		got := suggestionsForInput("/ships build small", nil)
+		if len(got) == 0 || got[0].value != "/ships build small_cargo " {
+			t.Fatalf("suggestionsForInput(/ships build small) = %#v", got)
+		}
+	})
+
+	t.Run("planet switch", func(t *testing.T) {
+		planets := []svc.Planet{{Code: "ABCD", Name: "Homeworld", Galaxy: 1, System: 2, Position: 3}}
+		got := suggestionsForInput("/switch home", planets)
+		if len(got) != 1 || got[0].value != "/switch ABCD" {
+			t.Fatalf("suggestionsForInput(/switch home) = %#v", got)
+		}
+	})
 }

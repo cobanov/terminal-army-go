@@ -16,10 +16,10 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return tui.RunREPL(cmd.Context(), remote, logout)
+			return tui.RunConsole(cmd.Context(), remote, logout)
 		},
 	}
-	root.Flags().StringVarP(&remote, "remote", "r", tui.DefaultServerURL, "terminal.army server URL")
+	root.Flags().StringVarP(&remote, "remote", "r", tui.DefaultServerURL, "terminal-army-go server URL")
 	root.Flags().BoolVar(&logout, "logout", false, "delete saved key for this server and exit")
 	root.AddCommand(
 		newServeCmd(),

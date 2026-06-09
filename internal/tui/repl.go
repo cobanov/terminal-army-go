@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -19,7 +20,7 @@ import (
 	"github.com/cobanov/terminal-army-go/internal/tui/client"
 )
 
-const DefaultServerURL = "https://terminal.army"
+const DefaultServerURL = "https://go.terminal.army"
 
 // RunREPL starts the Python-compatible slash-command client.
 func RunREPL(ctx context.Context, serverURL string, logout bool) error {
@@ -37,12 +38,12 @@ func RunREPL(ctx context.Context, serverURL string, logout bool) error {
 	if err != nil {
 		return err
 	}
-	r := &replSession{client: c, user: user}
+	r := &replSession{client: c, user: user, out: os.Stdout}
 	if err := r.ensurePlanets(ctx); err != nil {
 		return err
 	}
-	fmt.Printf("terminal.army %s\n", c.BaseURL())
-	fmt.Println("type /help for commands, /q to quit")
+	r.printf("terminal.army %s\n", c.BaseURL())
+	r.println("type /help for commands, /q to quit")
 	if err := r.printPlanet(ctx); err != nil {
 		return err
 	}
@@ -52,8 +53,28 @@ func RunREPL(ctx context.Context, serverURL string, logout bool) error {
 type replSession struct {
 	client       *client.Client
 	user         *svc.User
+	out          io.Writer
 	planets      []svc.Planet
 	currentIndex int
+}
+
+func (r *replSession) writer() io.Writer {
+	if r.out == nil {
+		return os.Stdout
+	}
+	return r.out
+}
+
+func (r *replSession) print(args ...any) {
+	fmt.Fprint(r.writer(), args...)
+}
+
+func (r *replSession) printf(format string, args ...any) {
+	fmt.Fprintf(r.writer(), format, args...)
+}
+
+func (r *replSession) println(args ...any) {
+	fmt.Fprintln(r.writer(), args...)
 }
 
 func acquireSession(ctx context.Context, c *client.Client) (*svc.User, error) {
@@ -114,7 +135,7 @@ func acquireSession(ctx context.Context, c *client.Client) (*svc.User, error) {
 func (r *replSession) loop(ctx context.Context) error {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Print("tarmy> ")
+		r.print("tarmy> ")
 		if !scanner.Scan() {
 			return scanner.Err()
 		}
@@ -123,14 +144,14 @@ func (r *replSession) loop(ctx context.Context) error {
 			continue
 		}
 		if !strings.HasPrefix(line, "/") {
-			fmt.Println("commands start with /. type /help")
+			r.println("commands start with /. type /help")
 			continue
 		}
 		if err := r.exec(ctx, line); err != nil {
 			if errors.Is(err, errQuit) {
 				return nil
 			}
-			fmt.Println("error:", err)
+			r.println("error:", err)
 		}
 	}
 }
@@ -145,9 +166,21 @@ func (r *replSession) exec(ctx context.Context, line string) error {
 	case "q", "quit", "exit":
 		return errQuit
 	case "help", "h":
-		printHelp()
+		r.printHelp()
+	case "clear":
+		return nil
+	case "refresh":
+		return r.printPlanet(ctx)
+	case "me":
+		r.printf("%s <%s> role=%s\n", r.user.Username, r.user.Email, r.user.Role)
+	case "planets":
+		return r.switchPlanet(ctx, nil)
 	case "planet", "p":
 		return r.printPlanet(ctx)
+	case "resources", "facilities":
+		return r.printPlanet(ctx)
+	case "queue":
+		return r.printQueue(ctx)
 	case "switch":
 		return r.switchPlanet(ctx, args)
 	case "upgrade", "u":
@@ -172,6 +205,8 @@ func (r *replSession) exec(ctx context.Context, line string) error {
 		return r.message(ctx, args)
 	case "messages", "inbox":
 		return r.messages(ctx)
+	case "reports":
+		return r.reports(ctx)
 	case "alliance", "ally":
 		return r.alliance(ctx, args)
 	case "leaderboard", "rank", "lb":
@@ -180,8 +215,35 @@ func (r *replSession) exec(ctx context.Context, line string) error {
 		return r.quest(ctx)
 	case "info":
 		return r.info(args)
+	case "logout":
+		_ = r.client.Logout(ctx)
+		_ = ClearCreds(r.client.BaseURL())
+		r.println("logged out")
+		return errQuit
 	default:
-		fmt.Println("unknown command. type /help")
+		r.println("unknown command. type /help")
+	}
+	return nil
+}
+
+func (r *replSession) printQueue(ctx context.Context) error {
+	p, err := r.currentPlanet()
+	if err != nil {
+		return err
+	}
+	qs, err := withTimeout(ctx, func(ctx context.Context) ([]svc.QueueItem, error) {
+		return r.client.GetQueues(ctx, p.ID)
+	})
+	if err != nil {
+		return err
+	}
+	if len(qs) == 0 {
+		r.println("queue empty")
+		return nil
+	}
+	r.println("queue")
+	for _, q := range qs {
+		r.printf("  #%d %s %s x%d -> %s\n", q.ID, q.QueueType, q.ItemKey, max(q.Count, q.TargetLevel), q.FinishedAt.Local().Format(time.Kitchen))
 	}
 	return nil
 }
@@ -245,23 +307,23 @@ func (r *replSession) printPlanet(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%s [%s] %d:%d:%d\n", p.Name, p.Code, p.Galaxy, p.System, p.Position)
-	fmt.Printf("resources  metal %.0f  crystal %.0f  deuterium %.0f\n", p.Metal, p.Crystal, p.Deuterium)
-	fmt.Printf("energy     %d / %d\n", p.EnergyUsed, p.EnergyProduced)
-	printLevels("buildings", p.Buildings)
+	r.printf("%s [%s] %d:%d:%d\n", p.Name, p.Code, p.Galaxy, p.System, p.Position)
+	r.printf("resources  metal %.0f  crystal %.0f  deuterium %.0f\n", p.Metal, p.Crystal, p.Deuterium)
+	r.printf("energy     %d / %d\n", p.EnergyUsed, p.EnergyProduced)
+	r.printLevels("buildings", p.Buildings)
 	if len(p.Ships) > 0 {
-		printLevels("ships", p.Ships)
+		r.printLevels("ships", p.Ships)
 	}
 	if len(p.Defense) > 0 {
-		printLevels("defense", p.Defense)
+		r.printLevels("defense", p.Defense)
 	}
 	qs, err := withTimeout(ctx, func(ctx context.Context) ([]svc.QueueItem, error) {
 		return r.client.GetQueues(ctx, p.ID)
 	})
 	if err == nil && len(qs) > 0 {
-		fmt.Println("queue")
+		r.println("queue")
 		for _, q := range qs {
-			fmt.Printf("  #%d %s %s x%d -> %s\n", q.ID, q.QueueType, q.ItemKey, max(q.Count, q.TargetLevel), q.FinishedAt.Local().Format(time.Kitchen))
+			r.printf("  #%d %s %s x%d -> %s\n", q.ID, q.QueueType, q.ItemKey, max(q.Count, q.TargetLevel), q.FinishedAt.Local().Format(time.Kitchen))
 		}
 	}
 	return nil
@@ -270,7 +332,7 @@ func (r *replSession) printPlanet(ctx context.Context) error {
 func (r *replSession) switchPlanet(ctx context.Context, args []string) error {
 	if len(args) == 0 {
 		for i, p := range r.planets {
-			fmt.Printf("%d. %s [%s] %d:%d:%d\n", i+1, p.Name, p.Code, p.Galaxy, p.System, p.Position)
+			r.printf("%d. %s [%s] %d:%d:%d\n", i+1, p.Name, p.Code, p.Galaxy, p.System, p.Position)
 		}
 		return nil
 	}
@@ -286,7 +348,7 @@ func (r *replSession) switchPlanet(ctx context.Context, args []string) error {
 
 func (r *replSession) queueBuilding(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		printCatalog("buildings", BuildingCatalog)
+		r.printCatalog("buildings", BuildingCatalog)
 		return nil
 	}
 	p, err := r.currentPlanet()
@@ -299,7 +361,7 @@ func (r *replSession) queueBuilding(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("queued %s level %d, finishes %s\n", item.ItemKey, item.TargetLevel, item.FinishedAt.Local().Format(time.Kitchen))
+	r.printf("queued %s level %d, finishes %s\n", item.ItemKey, item.TargetLevel, item.FinishedAt.Local().Format(time.Kitchen))
 	return nil
 }
 
@@ -312,7 +374,7 @@ func (r *replSession) research(ctx context.Context, args []string) error {
 			return err
 		}
 		for _, row := range rows {
-			fmt.Printf("%-22s %d\n", row.Tech, row.Level)
+			r.printf("%-22s %d\n", row.Tech, row.Level)
 		}
 		return nil
 	}
@@ -326,7 +388,7 @@ func (r *replSession) research(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("queued %s level %d, finishes %s\n", item.ItemKey, item.TargetLevel, item.FinishedAt.Local().Format(time.Kitchen))
+	r.printf("queued %s level %d, finishes %s\n", item.ItemKey, item.TargetLevel, item.FinishedAt.Local().Format(time.Kitchen))
 	return nil
 }
 
@@ -340,11 +402,11 @@ func (r *replSession) ships(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		printLevels("ships", p.Ships)
+		r.printLevels("ships", p.Ships)
 		return nil
 	}
 	if args[0] != "build" || len(args) < 3 {
-		fmt.Println("usage: /ships build small_cargo 5")
+		r.println("usage: /ships build small_cargo 5")
 		return nil
 	}
 	count, err := strconv.Atoi(args[2])
@@ -357,7 +419,7 @@ func (r *replSession) ships(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("queued %s x%d, finishes %s\n", item.ItemKey, item.Count, item.FinishedAt.Local().Format(time.Kitchen))
+	r.printf("queued %s x%d, finishes %s\n", item.ItemKey, item.Count, item.FinishedAt.Local().Format(time.Kitchen))
 	return nil
 }
 
@@ -371,11 +433,11 @@ func (r *replSession) defense(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		printLevels("defense", p.Defense)
+		r.printLevels("defense", p.Defense)
 		return nil
 	}
 	if args[0] != "build" || len(args) < 3 {
-		fmt.Println("usage: /defense build rocket_launcher 10")
+		r.println("usage: /defense build rocket_launcher 10")
 		return nil
 	}
 	count, err := strconv.Atoi(args[2])
@@ -388,7 +450,7 @@ func (r *replSession) defense(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("queued %s x%d, finishes %s\n", item.ItemKey, item.Count, item.FinishedAt.Local().Format(time.Kitchen))
+	r.printf("queued %s x%d, finishes %s\n", item.ItemKey, item.Count, item.FinishedAt.Local().Format(time.Kitchen))
 	return nil
 }
 
@@ -411,13 +473,13 @@ func (r *replSession) galaxy(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("galaxy %d:%d\n", view.Galaxy, view.System)
+	r.printf("galaxy %d:%d\n", view.Galaxy, view.System)
 	for _, slot := range view.Planets {
 		if slot.PlanetName == "" {
-			fmt.Printf("%2d  --\n", slot.Position)
+			r.printf("%2d  --\n", slot.Position)
 			continue
 		}
-		fmt.Printf("%2d  %-18s %-16s %s\n", slot.Position, slot.PlanetName, slot.OwnerName, slot.AllianceTag)
+		r.printf("%2d  %-18s %-16s %s\n", slot.Position, slot.PlanetName, slot.OwnerName, slot.AllianceTag)
 	}
 	return nil
 }
@@ -459,7 +521,7 @@ func (r *replSession) dispatch(ctx context.Context, mission string, args []strin
 	if err != nil {
 		return err
 	}
-	fmt.Printf("fleet #%d %s to %d:%d:%d, arrives %s\n", f.ID, f.Mission, g, s, pos, f.ArrivalAt.Local().Format(time.Kitchen))
+	r.printf("fleet #%d %s to %d:%d:%d, arrives %s\n", f.ID, f.Mission, g, s, pos, f.ArrivalAt.Local().Format(time.Kitchen))
 	return nil
 }
 
@@ -471,18 +533,18 @@ func (r *replSession) fleets(ctx context.Context) error {
 		return err
 	}
 	if len(rows) == 0 {
-		fmt.Println("no fleets in flight")
+		r.println("no fleets in flight")
 		return nil
 	}
 	for _, f := range rows {
-		fmt.Printf("#%d %-10s %-9s %d:%d:%d arrives %s\n", f.ID, f.Mission, f.State, f.TargetGalaxy, f.TargetSystem, f.TargetPosition, f.ArrivalAt.Local().Format(time.Kitchen))
+		r.printf("#%d %-10s %-9s %d:%d:%d arrives %s\n", f.ID, f.Mission, f.State, f.TargetGalaxy, f.TargetSystem, f.TargetPosition, f.ArrivalAt.Local().Format(time.Kitchen))
 	}
 	return nil
 }
 
 func (r *replSession) message(ctx context.Context, args []string) error {
 	if len(args) < 2 {
-		fmt.Println("usage: /msg username hello")
+		r.println("usage: /msg username hello")
 		return nil
 	}
 	body := strings.Join(args[1:], " ")
@@ -492,7 +554,7 @@ func (r *replSession) message(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("sent")
+	r.println("sent")
 	return nil
 }
 
@@ -504,7 +566,7 @@ func (r *replSession) messages(ctx context.Context) error {
 		return err
 	}
 	if len(rows) == 0 {
-		fmt.Println("inbox empty")
+		r.println("inbox empty")
 		return nil
 	}
 	for _, m := range rows {
@@ -512,7 +574,24 @@ func (r *replSession) messages(ctx context.Context) error {
 		if !m.Read {
 			read = "*"
 		}
-		fmt.Printf("%s #%d %-18s %s\n", read, m.ID, m.Subject, m.CreatedAt.Local().Format(time.Kitchen))
+		r.printf("%s #%d %-18s %s\n", read, m.ID, m.Subject, m.CreatedAt.Local().Format(time.Kitchen))
+	}
+	return nil
+}
+
+func (r *replSession) reports(ctx context.Context) error {
+	rows, err := withTimeout(ctx, func(ctx context.Context) ([]svc.Report, error) {
+		return r.client.ListReports(ctx)
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		r.println("reports empty")
+		return nil
+	}
+	for _, report := range rows {
+		r.printf("#%d %-10s %-28s %s\n", report.ID, report.Kind, report.Subject, report.CreatedAt.Local().Format(time.Kitchen))
 	}
 	return nil
 }
@@ -526,18 +605,18 @@ func (r *replSession) alliance(ctx context.Context, args []string) error {
 			return err
 		}
 		if len(rows) == 0 {
-			fmt.Println("no alliances yet")
+			r.println("no alliances yet")
 			return nil
 		}
 		for _, a := range rows {
-			fmt.Printf("#%d [%s] %-24s members:%d\n", a.ID, a.Tag, a.Name, a.MemberCount)
+			r.printf("#%d [%s] %-24s members:%d\n", a.ID, a.Tag, a.Name, a.MemberCount)
 		}
 		return nil
 	}
 	switch args[0] {
 	case "create":
 		if len(args) < 3 {
-			fmt.Println("usage: /alliance create TAG Name")
+			r.println("usage: /alliance create TAG Name")
 			return nil
 		}
 		a, err := withTimeout(ctx, func(ctx context.Context) (*svc.Alliance, error) {
@@ -546,7 +625,7 @@ func (r *replSession) alliance(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("created [%s] %s\n", a.Tag, a.Name)
+		r.printf("created [%s] %s\n", a.Tag, a.Name)
 	case "join":
 		if len(args) < 2 {
 			return errors.New("usage: /alliance join <id>")
@@ -566,7 +645,7 @@ func (r *replSession) alliance(ctx context.Context, args []string) error {
 		}
 		return r.client.LeaveAlliance(ctx, id)
 	default:
-		fmt.Println("usage: /alliance [list|create|join|leave]")
+		r.println("usage: /alliance [list|create|join|leave]")
 	}
 	return nil
 }
@@ -579,7 +658,7 @@ func (r *replSession) leaderboard(ctx context.Context) error {
 		return err
 	}
 	for _, row := range rows {
-		fmt.Printf("%3d %-18s %d\n", row.Rank, row.Username, row.Score)
+		r.printf("%3d %-18s %d\n", row.Rank, row.Username, row.Score)
 	}
 	return nil
 }
@@ -590,34 +669,34 @@ func (r *replSession) quest(ctx context.Context) error {
 		return err
 	}
 	if p.Buildings[string(game.BuildingMetalMine)] == 0 {
-		fmt.Println("current quest: build a metal mine with /upgrade metal_mine")
+		r.println("current quest: build a metal mine with /upgrade metal_mine")
 		return nil
 	}
 	if p.Buildings[string(game.BuildingCrystalMine)] == 0 {
-		fmt.Println("current quest: build a crystal mine with /upgrade crystal_mine")
+		r.println("current quest: build a crystal mine with /upgrade crystal_mine")
 		return nil
 	}
 	if p.Buildings[string(game.BuildingResearchLab)] == 0 {
-		fmt.Println("current quest: build a research lab with /upgrade research_lab")
+		r.println("current quest: build a research lab with /upgrade research_lab")
 		return nil
 	}
-	fmt.Println("current quest: scout the galaxy with /galaxy")
+	r.println("current quest: scout the galaxy with /galaxy")
 	return nil
 }
 
 func (r *replSession) info(args []string) error {
 	if len(args) == 0 {
-		printCatalog("buildings", BuildingCatalog)
-		printCatalog("research", ResearchCatalog)
-		printCatalog("ships", ShipCatalog)
-		printCatalog("defense", DefenseCatalog)
+		r.printCatalog("buildings", BuildingCatalog)
+		r.printCatalog("research", ResearchCatalog)
+		r.printCatalog("ships", ShipCatalog)
+		r.printCatalog("defense", DefenseCatalog)
 		return nil
 	}
 	key := args[0]
 	for _, group := range [][]CatalogItem{BuildingCatalog, ResearchCatalog, ShipCatalog, DefenseCatalog} {
 		for _, item := range group {
 			if item.Key == key {
-				fmt.Printf("%s: %s\n", item.Key, item.Label)
+				r.printf("%s: %s\n", item.Key, item.Label)
 				return nil
 			}
 		}
@@ -671,8 +750,8 @@ func parseKVArgs(args []string) (map[string]int, map[string]int) {
 	return ships, cargo
 }
 
-func printHelp() {
-	fmt.Println(`/planet                 show current planet
+func (r *replSession) printHelp() {
+	r.println(`/planet                 show current planet
 /switch 2               switch planet by number, code, or name
 /upgrade metal_mine     queue a building
 /research energy        queue research from current planet
@@ -692,16 +771,16 @@ func printHelp() {
 /q                      quit`)
 }
 
-func printCatalog(title string, rows []CatalogItem) {
-	fmt.Println(title)
+func (r *replSession) printCatalog(title string, rows []CatalogItem) {
+	r.println(title)
 	for _, item := range rows {
-		fmt.Printf("  %-24s %s\n", item.Key, item.Label)
+		r.printf("  %-24s %s\n", item.Key, item.Label)
 	}
 }
 
-func printLevels(title string, rows map[string]int) {
+func (r *replSession) printLevels(title string, rows map[string]int) {
 	if len(rows) == 0 {
-		fmt.Printf("%s: none\n", title)
+		r.printf("%s: none\n", title)
 		return
 	}
 	keys := make([]string, 0, len(rows))
@@ -709,9 +788,9 @@ func printLevels(title string, rows map[string]int) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	fmt.Println(title)
+	r.println(title)
 	for _, k := range keys {
-		fmt.Printf("  %-24s %d\n", k, rows[k])
+		r.printf("  %-24s %d\n", k, rows[k])
 	}
 }
 
