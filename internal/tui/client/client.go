@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -28,8 +30,30 @@ func New(baseURL string) *Client {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &Client{
 		baseURL: baseURL,
-		http:    &http.Client{Timeout: 15 * time.Second},
+		http:    &http.Client{Timeout: 15 * time.Second, Transport: transportFor(baseURL)},
 	}
+}
+
+func transportFor(baseURL string) http.RoundTripper {
+	u, err := url.Parse(baseURL)
+	if err != nil || u.Hostname() != "go.terminal.army" {
+		return http.DefaultTransport
+	}
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			dialer := net.Dialer{Timeout: 3 * time.Second}
+			return dialer.DialContext(ctx, "udp", "1.1.1.1:53")
+		},
+	}
+	dialer := &net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Resolver:  resolver,
+	}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DialContext = dialer.DialContext
+	return tr
 }
 
 // SetToken installs a bearer token for subsequent requests.
