@@ -100,7 +100,7 @@ download() {
     local tmp archive base url checksum_url checksum_file expected actual
 
     tmp="$(mktemp -d 2>/dev/null || mktemp -d -t tarmy)"
-    trap 'rm -rf "$tmp"' EXIT
+    trap 'rm -rf "${tmp:-}"' EXIT
 
     base="https://github.com/$REPO/releases/download/$VERSION"
     archive="${BINARY_NAME}_${VERSION#v}_${PLATFORM}.tar.gz"
