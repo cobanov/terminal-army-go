@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cobanov/terminal-army-go/internal/svc"
 	"github.com/cobanov/terminal-army-go/internal/tui/client"
 )
@@ -112,6 +113,12 @@ func TestConsoleCockpitViewContainsMajorRegions(t *testing.T) {
 		log:    []string{"resources", "metal_mine 11"},
 		side: consoleSideState{
 			planetID: 1,
+			production: &svc.ProductionReport{
+				MetalPerHour:     4858,
+				CrystalPerHour:   880,
+				DeuteriumPerHour: 506,
+				ProductionFactor: 1,
+			},
 			queues: []svc.QueueItem{{
 				ID:          9,
 				QueueType:   "building",
@@ -125,6 +132,47 @@ func TestConsoleCockpitViewContainsMajorRegions(t *testing.T) {
 	for _, want := range []string{"PLANET", "RESEARCH", "FLEET", "PLANETS", "QUEUES (1/5)", "metal_mine L12", "terminal.army", "Homeworld", "M 209.0k"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("cockpit view missing %q\n%s", want, view)
+		}
+	}
+	assertMaxLineWidth(t, view, model.width)
+}
+
+func TestConsoleCockpitViewDoesNotOverflowWideTerminal(t *testing.T) {
+	now := time.Now()
+	input := textinput.New()
+	input.Prompt = "tarmy> "
+	model := consoleModel{
+		ctx:   context.Background(),
+		input: input,
+		session: &replSession{
+			client: client.New("https://go.terminal.army"),
+			user:   &svc.User{Username: "cobanov", Email: "cobanov@example.test", Role: "player"},
+			planets: []svc.Planet{
+				{ID: 1, Code: "3SXQ7YSQ", Name: "Homeworld", Galaxy: 7, System: 447, Position: 12, FieldsUsed: 3, FieldsTotal: 108, TempMin: -15, TempMax: 25, Metal: 225, Crystal: 435, EnergyProduced: 0, EnergyUsed: 0},
+			},
+		},
+		width:  238,
+		height: 60,
+		side: consoleSideState{
+			planetID: 1,
+			queues: []svc.QueueItem{{
+				ID:          4,
+				QueueType:   "building",
+				ItemKey:     "metal_mine",
+				TargetLevel: 4,
+				StartedAt:   now.Add(-time.Minute),
+				FinishedAt:  now.Add(3 * time.Minute),
+			}},
+		},
+	}
+	assertMaxLineWidth(t, model.View(), model.width)
+}
+
+func assertMaxLineWidth(t *testing.T, view string, maxWidth int) {
+	t.Helper()
+	for i, line := range strings.Split(view, "\n") {
+		if w := lipgloss.Width(line); w > maxWidth {
+			t.Fatalf("line %d width = %d, want <= %d\n%s", i+1, w, maxWidth, line)
 		}
 	}
 }

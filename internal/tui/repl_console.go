@@ -83,12 +83,13 @@ type completion struct {
 }
 
 type consoleSideState struct {
-	planetID int64
-	queues   []svc.QueueItem
-	fleets   []svc.Fleet
-	messages []svc.Message
-	err      error
-	loadedAt time.Time
+	planetID   int64
+	production *svc.ProductionReport
+	queues     []svc.QueueItem
+	fleets     []svc.Fleet
+	messages   []svc.Message
+	err        error
+	loadedAt   time.Time
 }
 
 type commandDoneMsg struct {
@@ -117,11 +118,6 @@ func newConsoleModel(ctx context.Context, r *replSession) consoleModel {
 		width:     100,
 		height:    32,
 		status:    "ready",
-	}
-	m.addLog(titleStyle().Render("terminal.army") + " " + mutedStyle().Render(r.client.BaseURL()))
-	m.addLog(mutedStyle().Render("Type / to see commands, Tab to autocomplete, Up/Down to navigate suggestions, Ctrl+L to clear."))
-	if out, err := m.capture(func() error { return r.printPlanet(ctx) }); err == nil {
-		m.addLog(out)
 	}
 	return m
 }
@@ -223,19 +219,21 @@ func (m consoleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m consoleModel) View() string {
 	w := max(96, m.width)
 	h := max(30, m.height)
-	leftW := 26
-	rightW := 31
+	leftInnerW := 26
+	rightInnerW := 31
 	gap := 1
-	mainW := max(50, w-leftW-rightW-(gap*2))
+	leftOuterW := railOuterWidth(leftInnerW)
+	rightOuterW := railOuterWidth(rightInnerW)
+	mainW := max(50, w-leftOuterW-rightOuterW-(gap*2))
 	bodyH := max(18, h-5)
 	mainH := bodyH
 
 	top := m.renderTopBar(w)
-	left := sideRailStyle(leftW, bodyH).Render(m.renderNav(leftW - 4))
+	left := sideRailStyle(leftInnerW, bodyH).Render(m.renderNav(leftInnerW - 4))
 	main := centerStyle(mainW, mainH).Render(m.renderCenter(mainW-2, mainH-2))
-	right := sideRailStyle(rightW, bodyH).Render(m.renderRight(rightW - 4))
+	right := sideRailStyle(rightInnerW, bodyH).Render(m.renderRight(rightInnerW - 4))
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), main, strings.Repeat(" ", gap), right)
-	return lipgloss.JoinVertical(lipgloss.Left, top, body)
+	return pageStyle(w, h).Render(lipgloss.JoinVertical(lipgloss.Left, top, body))
 }
 
 func (m *consoleModel) runCommand(line string) tea.Cmd {
@@ -261,6 +259,13 @@ func (m consoleModel) loadSideState() tea.Cmd {
 			return sideStateLoadedMsg{state: state}
 		}
 		state.queues = queues
+
+		prod, err := withTimeout(m.ctx, func(ctx context.Context) (*svc.ProductionReport, error) {
+			return m.session.client.GetProduction(ctx, planetID)
+		})
+		if err == nil {
+			state.production = prod
+		}
 
 		fleets, err := withTimeout(m.ctx, func(ctx context.Context) ([]svc.Fleet, error) {
 			return m.session.client.ListFleet(ctx)
@@ -325,16 +330,21 @@ func (m consoleModel) renderTopBar(width int) string {
 		left += accentOrange().Render(p.Name)
 		left += fmt.Sprintf(" %s", accentYellow().Render(fmt.Sprintf("%d:%d:%d", p.Galaxy, p.System, p.Position)))
 		mid = mutedStyle().Render(fmt.Sprintf("fields %d/%d · temp %d/%d°C", p.FieldsUsed, p.FieldsTotal, p.TempMin, p.TempMax))
-		res = fmt.Sprintf("M %s   C %s   D %s   E %s",
+		rates := ""
+		if m.side.production != nil {
+			rates = mutedStyle().Render(fmt.Sprintf("  +%.0f/%.0f/%.0f/h", m.side.production.MetalPerHour, m.side.production.CrystalPerHour, m.side.production.DeuteriumPerHour))
+		}
+		res = fmt.Sprintf("M %s   C %s   D %s%s   E %s",
 			accentYellow().Render(formatCompact(p.Metal)),
 			accentCyan().Render(formatCompact(p.Crystal)),
 			accentMagenta().Render(formatCompact(p.Deuterium)),
+			rates,
 			energyStyle(p.EnergyProduced-p.EnergyUsed).Render(fmt.Sprintf("%+d", p.EnergyProduced-p.EnergyUsed)),
 		)
 	}
-	right := accentGreen().Render(time.Now().Format("15:04:05")) + mutedStyle().Render("  ● 1 online   🛡 0 def")
+	right := accentGreen().Render(time.Now().Format("15:04:05")) + mutedStyle().Render("  ● 1 online   0 def")
 	line1 := fitColumns(width, left+"  "+mid, right)
-	line2 := fitColumns(width, res, mutedStyle().Render("▣ inbox"))
+	line2 := fitColumns(width, res, mutedStyle().Render("inbox"))
 	return topBarStyle(width).Render(line1 + "\n" + line2)
 }
 
@@ -363,16 +373,26 @@ func (m consoleModel) renderPlanetCard(width, height int) string {
 	if p == nil {
 		return mutedStyle().Render("no planet")
 	}
+	metalRate := "+?/h"
+	crystalRate := "+?/h"
+	deutRate := "+?/h"
+	factor := ""
+	if m.side.production != nil {
+		metalRate = fmt.Sprintf("+%.0f/h", m.side.production.MetalPerHour)
+		crystalRate = fmt.Sprintf("+%.0f/h", m.side.production.CrystalPerHour)
+		deutRate = fmt.Sprintf("+%.0f/h", m.side.production.DeuteriumPerHour)
+		factor = mutedStyle().Render(fmt.Sprintf("  (%.2fx)", m.side.production.ProductionFactor))
+	}
 	globe := renderPlanetGlobe(p.Code, p.Position, min(18, max(12, width/5)), min(9, max(7, height-1)))
 	rows := []string{
 		accentOrange().Render(strings.ToUpper(p.Name) + " " + fmt.Sprintf("%d:%d:%d", p.Galaxy, p.System, p.Position)),
 		mutedStyle().Render(fmt.Sprintf("fields %d/%d   temp %d/%d°C", p.FieldsUsed, p.FieldsTotal, p.TempMin, p.TempMax)),
 		"",
-		fmt.Sprintf("metal     %s   %s", accentYellow().Render(formatCompact(p.Metal)), mutedStyle().Render("+?/h")),
-		fmt.Sprintf("crystal   %s   %s", accentCyan().Render(formatCompact(p.Crystal)), mutedStyle().Render("+?/h")),
-		fmt.Sprintf("deut      %s   %s", accentMagenta().Render(formatCompact(p.Deuterium)), mutedStyle().Render("+?/h")),
+		fmt.Sprintf("metal     %s   %s", accentYellow().Render(formatCompact(p.Metal)), mutedStyle().Render(metalRate)),
+		fmt.Sprintf("crystal   %s   %s", accentCyan().Render(formatCompact(p.Crystal)), mutedStyle().Render(crystalRate)),
+		fmt.Sprintf("deut      %s   %s", accentMagenta().Render(formatCompact(p.Deuterium)), mutedStyle().Render(deutRate)),
 		"",
-		fmt.Sprintf("energy    prod %d / used %d    bal %s", p.EnergyProduced, p.EnergyUsed, energyStyle(p.EnergyProduced-p.EnergyUsed).Render(fmt.Sprintf("%+d", p.EnergyProduced-p.EnergyUsed))),
+		fmt.Sprintf("energy    prod %d / used %d    bal %s%s", p.EnergyProduced, p.EnergyUsed, energyStyle(p.EnergyProduced-p.EnergyUsed).Render(fmt.Sprintf("%+d", p.EnergyProduced-p.EnergyUsed)), factor),
 	}
 	infoW := max(24, width-lipgloss.Width(globe)-4)
 	info := clampBlock(strings.Join(rows, "\n"), infoW, height)
@@ -684,7 +704,9 @@ func commandSuggestions(prefix string) []completion {
 		{"/resources", "/resources", "resources and buildings"},
 		{"/facilities", "/facilities", "facilities overview"},
 		{"/upgrade ", "/upgrade <building>", "queue building"},
+		{"/queue", "/queue", "active build and research queue"},
 		{"/research ", "/research <tech>", "queue research"},
+		{"/tree", "/tree", "research tree and prerequisites"},
 		{"/ships", "/ships", "ship inventory"},
 		{"/ships build ", "/ships build <ship> <n>", "build ships"},
 		{"/defense", "/defense", "defense inventory"},
@@ -827,6 +849,11 @@ func fitColumns(width int, left, right string) string {
 		return clampLine(left+" "+right, width)
 	}
 	return left + strings.Repeat(" ", width-leftW-rightW) + right
+}
+
+func railOuterWidth(inner int) int {
+	// sideRailStyle uses left+right padding plus a right border.
+	return inner + 3
 }
 
 func rule(width int, ch, color string) string {
@@ -973,18 +1000,27 @@ func selectedStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("178")).Bold(true).Padding(0, 1)
 }
 
+func pageStyle(width, height int) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Width(width).
+		Height(height).
+		Foreground(lipgloss.Color("252")).
+		Background(lipgloss.Color("0"))
+}
+
 func topBarStyle(width int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(width).
+		Background(lipgloss.Color("0")).
 		Border(lipgloss.NormalBorder(), false, false, true, false).
-		BorderForeground(lipgloss.Color("238")).
-		Padding(0, 1)
+		BorderForeground(lipgloss.Color("238"))
 }
 
 func sideRailStyle(width, height int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
+		Background(lipgloss.Color("0")).
 		Border(lipgloss.NormalBorder(), false, true, false, false).
 		BorderForeground(lipgloss.Color("238")).
 		Padding(0, 1)
@@ -994,6 +1030,7 @@ func centerStyle(width, height int) lipgloss.Style {
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
+		Background(lipgloss.Color("0")).
 		Padding(0, 0)
 }
 
