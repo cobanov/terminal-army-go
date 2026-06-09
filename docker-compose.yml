@@ -3,7 +3,7 @@
 # What this stack runs:
 #   - postgres 16: the only persistent dependency
 #   - tarmy-migrate: one-shot migration applier, exits after success
-#   - tarmy: the long-running HTTP/WebSocket server (and queue scheduler)
+#   - tarmy: the long-running HTTP server (and queue scheduler)
 #
 # Bring it up:
 #   cp .env.example .env && $EDITOR .env        # set TARMY_JWT_SECRET
