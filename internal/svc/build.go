@@ -93,14 +93,15 @@ func (s *BuildService) QueueBuilding(ctx context.Context, userID, planetID int64
 			return fmt.Errorf("%w: %s", ErrPrerequisiteNotMet, strings.Join(missing, ", "))
 		}
 
-		costMetal, costCrystal, costDeut := game.BuildingLevelCost(bt, target)
-		if int(planet.Metal) < costMetal || int(planet.Crystal) < costCrystal || int(planet.Deuterium) < costDeut {
-			return ErrInsufficientResources
-		}
-
 		universe, err := qtx.GetUniverse(ctx, planet.UniverseID)
 		if err != nil {
 			return err
+		}
+
+		costMetal, costCrystal, costDeut := game.BuildingLevelCost(bt, target)
+		costMetal = applyFirstSolarRescueCost(bt, target, planet, buildings, researches, costMetal, costCrystal, costDeut, float64(universe.SpeedEconomy))
+		if int(planet.Metal) < costMetal || int(planet.Crystal) < costCrystal || int(planet.Deuterium) < costDeut {
+			return ErrInsufficientResources
 		}
 
 		robotics := buildings[string(game.BuildingRoboticsFactory)]
@@ -150,6 +151,30 @@ func (s *BuildService) QueueBuilding(ctx context.Context, userID, planetID int64
 		return nil
 	})
 	return out, err
+}
+
+func applyFirstSolarRescueCost(bt game.BuildingType, target int, planet *store.Planet, buildings map[string]int, researches map[string]int, costMetal, costCrystal, costDeut int, speed float64) int {
+	if bt != game.BuildingSolarPlant || target != 1 || buildings[string(game.BuildingSolarPlant)] > 0 {
+		return costMetal
+	}
+	if int(planet.Crystal) < costCrystal || int(planet.Deuterium) < costDeut || int(planet.Metal) >= costMetal {
+		return costMetal
+	}
+	report := game.ComputePlanetProduction(
+		toBuildingMap(buildings),
+		toTechMap(researches),
+		planet.TempMin, planet.TempMax,
+		game.MetalBonusByPosition[planet.Position],
+		game.CrystalBonusByPosition[planet.Position],
+		speed,
+	)
+	if report.EnergyProduced > 0 || report.EnergyConsumed == 0 {
+		return costMetal
+	}
+	if planet.Metal <= 0 {
+		return 0
+	}
+	return int(planet.Metal)
 }
 
 // PlanetQueues returns the active (non-cancelled, non-applied) queue items
