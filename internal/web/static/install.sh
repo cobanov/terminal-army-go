@@ -80,10 +80,14 @@ require() {
 resolve_version() {
     if [ "$VERSION" = "latest" ]; then
         info "resolving latest release for $REPO ..."
-        VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+        VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
             | grep -oE '"tag_name": *"[^"]+"' \
             | head -1 \
-            | sed 's/.*"\([^"]*\)"$/\1/')
+            | sed 's/.*"\([^"]*\)"$/\1/' || true)
+        if [ -z "$VERSION" ]; then
+            latest_url=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest" 2>/dev/null || true)
+            VERSION="${latest_url##*/}"
+        fi
         if [ -z "$VERSION" ]; then
             die "could not resolve latest release. set VERSION=vX.Y.Z explicitly."
         fi
