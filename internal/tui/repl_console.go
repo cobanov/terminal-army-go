@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/cobanov/terminal-army-go/internal/game"
 	"github.com/cobanov/terminal-army-go/internal/svc"
 	"github.com/cobanov/terminal-army-go/internal/tui/client"
@@ -218,23 +219,62 @@ func (m consoleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m consoleModel) View() string {
-	w := max(96, m.width)
-	h := max(30, m.height)
-	leftInnerW := 26
-	rightInnerW := 31
+	w := consoleWidth(m.width)
+	h := consoleHeight(m.height)
+	top := m.renderTopBar(w)
+	bodyH := max(1, h-blockHeight(top))
+	body := m.renderResponsiveBody(w, bodyH)
+	page := clampBlock(lipgloss.JoinVertical(lipgloss.Left, top, body), w, h)
+	return pageStyle(w, h).Render(page)
+}
+
+func (m consoleModel) renderResponsiveBody(width, height int) string {
+	switch {
+	case width >= 104:
+		return m.renderThreeColumn(width, height)
+	case width >= 72:
+		return m.renderTwoColumn(width, height)
+	default:
+		return m.renderSingleColumn(width, height)
+	}
+}
+
+func (m consoleModel) renderThreeColumn(width, height int) string {
+	leftInnerW := clampInt(width/5, 20, 26)
+	rightInnerW := clampInt(width/4, 24, 31)
 	gap := 1
 	leftOuterW := railOuterWidth(leftInnerW)
 	rightOuterW := railOuterWidth(rightInnerW)
-	mainW := max(50, w-leftOuterW-rightOuterW-(gap*2))
-	bodyH := max(18, h-5)
-	mainH := bodyH
+	mainW := width - leftOuterW - rightOuterW - (gap * 2)
+	if mainW < 42 {
+		return m.renderTwoColumn(width, height)
+	}
 
-	top := m.renderTopBar(w)
-	left := sideRailStyle(leftInnerW, bodyH).Render(m.renderNav(leftInnerW - 4))
-	main := centerStyle(mainW, mainH).Render(m.renderCenter(mainW-2, mainH-2))
-	right := sideRailStyle(rightInnerW, bodyH).Render(m.renderRight(rightInnerW - 4))
+	left := sideRailStyle(leftInnerW, height).Render(m.renderNav(leftInnerW - 4))
+	main := centerStyle(mainW, height).Render(m.renderCenter(max(1, mainW-2), height))
+	right := sideRailStyle(rightInnerW, height).Render(m.renderRight(rightInnerW - 4))
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gap), main, strings.Repeat(" ", gap), right)
-	return pageStyle(w, h).Render(lipgloss.JoinVertical(lipgloss.Left, top, body))
+	return clampBlock(body, width, height)
+}
+
+func (m consoleModel) renderTwoColumn(width, height int) string {
+	rightInnerW := clampInt(width/3, 22, 31)
+	gap := 1
+	rightOuterW := railOuterWidth(rightInnerW)
+	mainW := width - rightOuterW - gap
+	if mainW < 38 {
+		return m.renderSingleColumn(width, height)
+	}
+
+	main := centerStyle(mainW, height).Render(m.renderCenter(max(1, mainW-2), height))
+	right := sideRailStyle(rightInnerW, height).Render(m.renderRight(rightInnerW - 4))
+	body := lipgloss.JoinHorizontal(lipgloss.Top, main, strings.Repeat(" ", gap), right)
+	return clampBlock(body, width, height)
+}
+
+func (m consoleModel) renderSingleColumn(width, height int) string {
+	main := centerStyle(width, height).Render(m.renderCenter(max(1, width-2), height))
+	return clampBlock(main, width, height)
 }
 
 func (m *consoleModel) runCommand(line string) tea.Cmd {
@@ -354,29 +394,51 @@ func (m consoleModel) renderTopBar(width int) string {
 }
 
 func (m consoleModel) renderCenter(width, height int) string {
-	planetH := min(10, max(7, height/4))
-	suggestH := 8
+	width = max(1, width)
+	height = max(1, height)
+
+	planetH := 0
+	if height >= 9 {
+		planetH = min(9, max(4, height/4))
+	}
+	suggestH := 0
+	if height >= 12 {
+		suggestH = min(7, max(3, height/5))
+	}
 	inputH := 1
-	logH := max(6, height-planetH-suggestH-inputH-4)
-	planet := m.renderPlanetCard(width, planetH)
+	reserved := inputH
+	if planetH > 0 {
+		reserved += planetH + 1
+	}
+	if suggestH > 0 {
+		reserved += suggestH + 1
+	}
+	logH := max(1, height-reserved)
 	log := m.renderCommandArea(width, logH)
-	suggest := m.renderSuggestions(width)
-	input := inputLineStyle(width).Render(m.input.View())
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		planet,
-		rule(width, "─", "238"),
-		log,
-		rule(width, "─", "178"),
-		suggest,
-		input,
-	)
+	input := m.renderInput(width)
+
+	parts := make([]string, 0, 6)
+	if planetH > 0 {
+		parts = append(parts, m.renderPlanetCard(width, planetH), rule(width, "─", "238"))
+	}
+	parts = append(parts, log)
+	if suggestH > 0 {
+		parts = append(parts, rule(width, "─", "178"), clampBlock(m.renderSuggestions(width), width, suggestH))
+	}
+	parts = append(parts, input)
+	return clampBlock(lipgloss.JoinVertical(lipgloss.Left, parts...), width, height)
+}
+
+func (m consoleModel) renderInput(width int) string {
+	input := m.input
+	input.Width = max(1, width-lipgloss.Width(input.Prompt)-4)
+	return inputLineStyle(width).Render(input.View())
 }
 
 func (m consoleModel) renderPlanetCard(width, height int) string {
 	p := m.currentPlanet()
 	if p == nil {
-		return mutedStyle().Render("no planet")
+		return clampBlock(mutedStyle().Render("no planet"), width, height)
 	}
 	metalRate := "+?/h"
 	crystalRate := "+?/h"
@@ -396,7 +458,6 @@ func (m consoleModel) renderPlanetCard(width, height int) string {
 			warning = errorStyle().Render("energy deficit; build solar_plant")
 		}
 	}
-	globe := renderPlanetGlobe(p.Code, p.Position, min(18, max(12, width/5)), min(9, max(7, height-1)))
 	rows := []string{
 		accentOrange().Render(strings.ToUpper(p.Name) + " " + fmt.Sprintf("%d:%d:%d", p.Galaxy, p.System, p.Position)),
 		mutedStyle().Render(fmt.Sprintf("fields %d/%d   temp %d/%d°C", p.FieldsUsed, p.FieldsTotal, p.TempMin, p.TempMax)),
@@ -410,9 +471,17 @@ func (m consoleModel) renderPlanetCard(width, height int) string {
 	if warning != "" {
 		rows = append(rows, warning)
 	}
-	infoW := max(24, width-lipgloss.Width(globe)-4)
+	if width < 48 || height < 6 {
+		return clampBlock(strings.Join(rows, "\n"), width, height)
+	}
+
+	globe := renderPlanetGlobe(p.Code, p.Position, min(18, max(10, width/5)), min(8, max(5, height-1)))
+	infoW := width - lipgloss.Width(globe) - 2
+	if infoW < 18 {
+		return clampBlock(strings.Join(rows, "\n"), width, height)
+	}
 	info := clampBlock(strings.Join(rows, "\n"), infoW, height)
-	return lipgloss.JoinHorizontal(lipgloss.Top, globe, "  ", info)
+	return clampBlock(lipgloss.JoinHorizontal(lipgloss.Top, globe, "  ", info), width, height)
 }
 
 func (m consoleModel) renderCommandArea(width, height int) string {
@@ -465,12 +534,17 @@ func (m consoleModel) renderSuggestions(width int) string {
 	}
 	maxRows := min(7, len(items))
 	rows := make([]string, 0, maxRows)
+	innerW := max(1, width-3)
 	for i := 0; i < maxRows; i++ {
 		s := items[i]
-		raw := clampLine(fmt.Sprintf("%-28s  %s", s.label, s.desc), width-3)
+		raw := clampLine(fmt.Sprintf("%-28s  %s", s.label, s.desc), innerW)
 		label := accentCyan().Render(fmt.Sprintf("%-28s", s.label)) + "  " + mutedStyle().Render(s.desc)
-		label = clampLine(label, width-3)
+		label = clampLine(label, innerW)
 		if len(m.suggestions) > 0 && i == m.selected {
+			if width < 3 {
+				rows = append(rows, raw)
+				continue
+			}
 			rows = append(rows, selectedStyle().Render(raw))
 			continue
 		}
@@ -882,8 +956,8 @@ func formatCompact(v float64) string {
 }
 
 func fitColumns(width int, left, right string) string {
-	leftW := lipgloss.Width(left)
-	rightW := lipgloss.Width(right)
+	leftW := ansi.StringWidth(left)
+	rightW := ansi.StringWidth(right)
 	if leftW+rightW+1 >= width {
 		return clampLine(left+" "+right, width)
 	}
@@ -914,6 +988,13 @@ func clampBlock(s string, width, height int) string {
 		lines[i] = clampLine(lines[i], width)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func blockHeight(s string) int {
+	if s == "" {
+		return 0
+	}
+	return len(strings.Split(strings.TrimRight(s, "\n"), "\n"))
 }
 
 func renderPlanetGlobe(seed string, position, globeW, globeH int) string {
@@ -1126,17 +1207,16 @@ func planetStyle(position int) lipgloss.Style {
 }
 
 func clampLine(s string, width int) string {
-	if width <= 0 || lipgloss.Width(s) <= width {
+	if width <= 0 {
+		return ""
+	}
+	if ansi.StringWidth(s) <= width {
 		return s
 	}
 	if width <= 1 {
 		return "…"
 	}
-	runes := []rune(s)
-	for len(runes) > 0 && lipgloss.Width(string(runes)) > width-1 {
-		runes = runes[:len(runes)-1]
-	}
-	return string(runes) + "…"
+	return ansi.Truncate(s, width, "…")
 }
 
 func min(a, b int) int {
@@ -1144,4 +1224,28 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func clampInt(v, low, high int) int {
+	if v < low {
+		return low
+	}
+	if v > high {
+		return high
+	}
+	return v
+}
+
+func consoleWidth(width int) int {
+	if width <= 0 {
+		return 100
+	}
+	return max(12, width)
+}
+
+func consoleHeight(height int) int {
+	if height <= 0 {
+		return 32
+	}
+	return max(6, height)
 }

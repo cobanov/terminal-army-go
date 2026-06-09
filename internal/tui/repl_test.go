@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -138,10 +139,36 @@ func TestConsoleCockpitViewContainsMajorRegions(t *testing.T) {
 }
 
 func TestConsoleCockpitViewDoesNotOverflowWideTerminal(t *testing.T) {
+	model := testConsoleModel(t, 238, 60)
+	assertMaxLineWidth(t, model.View(), model.width)
+}
+
+func TestConsoleCockpitViewRespondsToNarrowTerminals(t *testing.T) {
+	for _, size := range []struct {
+		width  int
+		height int
+	}{
+		{width: 96, height: 36},
+		{width: 80, height: 32},
+		{width: 60, height: 26},
+		{width: 40, height: 18},
+		{width: 28, height: 12},
+	} {
+		t.Run(fmt.Sprintf("%dx%d", size.width, size.height), func(t *testing.T) {
+			model := testConsoleModel(t, size.width, size.height)
+			view := model.View()
+			assertMaxLineWidth(t, view, size.width)
+			assertMaxLineCount(t, view, size.height)
+		})
+	}
+}
+
+func testConsoleModel(t *testing.T, width, height int) consoleModel {
+	t.Helper()
 	now := time.Now()
 	input := textinput.New()
 	input.Prompt = "tarmy> "
-	model := consoleModel{
+	return consoleModel{
 		ctx:   context.Background(),
 		input: input,
 		session: &replSession{
@@ -151,8 +178,9 @@ func TestConsoleCockpitViewDoesNotOverflowWideTerminal(t *testing.T) {
 				{ID: 1, Code: "3SXQ7YSQ", Name: "Homeworld", Galaxy: 7, System: 447, Position: 12, FieldsUsed: 3, FieldsTotal: 108, TempMin: -15, TempMax: 25, Metal: 225, Crystal: 435, EnergyProduced: 0, EnergyUsed: 0},
 			},
 		},
-		width:  238,
-		height: 60,
+		width:  width,
+		height: height,
+		log:    []string{"resources", "metal_mine 11", "very long command output that should be truncated rather than wrapping past the terminal edge"},
 		side: consoleSideState{
 			planetID: 1,
 			queues: []svc.QueueItem{{
@@ -165,7 +193,6 @@ func TestConsoleCockpitViewDoesNotOverflowWideTerminal(t *testing.T) {
 			}},
 		},
 	}
-	assertMaxLineWidth(t, model.View(), model.width)
 }
 
 func assertMaxLineWidth(t *testing.T, view string, maxWidth int) {
@@ -174,5 +201,13 @@ func assertMaxLineWidth(t *testing.T, view string, maxWidth int) {
 		if w := lipgloss.Width(line); w > maxWidth {
 			t.Fatalf("line %d width = %d, want <= %d\n%s", i+1, w, maxWidth, line)
 		}
+	}
+}
+
+func assertMaxLineCount(t *testing.T, view string, maxHeight int) {
+	t.Helper()
+	lines := strings.Split(strings.TrimRight(view, "\n"), "\n")
+	if len(lines) > maxHeight {
+		t.Fatalf("line count = %d, want <= %d\n%s", len(lines), maxHeight, view)
 	}
 }
