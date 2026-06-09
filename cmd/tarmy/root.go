@@ -24,6 +24,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(
 		newServeCmd(),
 		newPlayCmd(),
+		newUpdateCmd(),
 		newMigrateCmd(),
 		newAdminCmd(),
 	)

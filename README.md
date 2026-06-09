@@ -31,6 +31,7 @@ scheduler, the terminal clients, and the admin CLI from the same image.
 tarmy serve                 run HTTP API + queue scheduler
 tarmy [--remote URL]        launch the slash-command terminal client
 tarmy play [--server URL]   launch the screen-based Bubble Tea client
+tarmy update [--to vX.Y.Z]  update the installed binary from GitHub releases
 tarmy migrate up|down|version
 tarmy admin seed-universe   create the default universe (idempotent)
 tarmy admin promote <user>  grant the admin role
@@ -82,6 +83,7 @@ slash-command terminal client.
 The install script picks the right binary for your OS and CPU (Linux or
 macOS, amd64 or arm64), verifies its SHA256 if the release ships one, and
 drops it into `/usr/local/bin` (or `~/.local/bin` if you are non-root).
+After that, future upgrades can be installed with `tarmy update`.
 
 ## Quick start: local dev
 

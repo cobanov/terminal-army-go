@@ -162,6 +162,7 @@ final_notes() {
 
 quick start:
   $BINARY_NAME --version
+  $BINARY_NAME update
   $BINARY_NAME
 
 server operators (requires Docker):
