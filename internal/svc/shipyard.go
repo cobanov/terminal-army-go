@@ -32,6 +32,9 @@ func (s *ShipyardService) QueueShip(ctx context.Context, userID, planetID int64,
 	if count < 1 {
 		return nil, fmt.Errorf("count must be at least 1")
 	}
+	if count > game.MaxUnitBatch {
+		return nil, fmt.Errorf("count must be at most %d", game.MaxUnitBatch)
+	}
 
 	var out *QueueItem
 	err = store.InTx(ctx, s.app.Pool, func(tx pgx.Tx) error {
@@ -151,6 +154,9 @@ func (s *ShipyardService) QueueDefense(ctx context.Context, userID, planetID int
 	}
 	if count < 1 {
 		return nil, fmt.Errorf("count must be at least 1")
+	}
+	if count > game.MaxUnitBatch {
+		return nil, fmt.Errorf("count must be at most %d", game.MaxUnitBatch)
 	}
 
 	var out *QueueItem

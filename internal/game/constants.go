@@ -298,6 +298,10 @@ const (
 	StartingDeuterium   = 0
 	StartingFieldsUsed  = 0
 	BuildQueueMaxActive = 5
+	// MaxUnitBatch caps a single ship/defense build order. It is far above any
+	// realistic order and exists to stop attacker-supplied counts from
+	// overflowing the cost/duration arithmetic.
+	MaxUnitBatch = 1_000_000
 )
 
 // BuildingCost holds the base cost and exponential growth factor for one
