@@ -1,0 +1,5 @@
+# Documentation site toolchain (docs.terminal.army). Install with:
+#   python3 -m venv .venv && .venv/bin/pip install -r requirements-docs.txt
+# Build:  mkdocs build --strict
+# Serve:  mkdocs serve
+mkdocs-material>=9.5,<10

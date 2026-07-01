@@ -54,6 +54,7 @@ type App struct {
 	Alliance    *AllianceService
 	Leaderboard *LeaderboardService
 	Stats       *StatsService
+	View        *ViewService
 	Presence    *PresenceTracker
 }
 
@@ -80,6 +81,7 @@ func NewApp(cfg *config.Config, pool *pgxpool.Pool, q *store.Queries, tokens Tok
 	a.Alliance = &AllianceService{app: a}
 	a.Leaderboard = &LeaderboardService{app: a}
 	a.Stats = &StatsService{app: a}
+	a.View = &ViewService{app: a}
 	return a
 }
 

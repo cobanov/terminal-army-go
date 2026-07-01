@@ -2,6 +2,22 @@ package game
 
 import "fmt"
 
+// TechTreeParent maps each research to its logical parent in the research tree.
+// Root techs (Energy, Computer, Espionage, Weapons, Armour) have no parent and
+// are absent from the map. The read-model exposes this so clients can render an
+// indented tree without hard-coding the hierarchy.
+var TechTreeParent = map[TechType]TechType{
+	TechLaser:           TechEnergy,
+	TechIon:             TechLaser,
+	TechPlasma:          TechIon,
+	TechHyperspace:      TechEnergy,
+	TechCombustionDrive: TechEnergy,
+	TechImpulseDrive:    TechEnergy,
+	TechShielding:       TechEnergy,
+	TechHyperspaceDrive: TechHyperspace,
+	TechAstrophysics:    TechEspionage,
+}
+
 // CheckBuildingPrereqs evaluates a building target against current building
 // and tech levels. The bool is true when nothing is missing.
 func CheckBuildingPrereqs(

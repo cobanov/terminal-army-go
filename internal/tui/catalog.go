@@ -1,9 +1,9 @@
-// Static catalogs of the keys exposed by the server, paired with display
-// labels. The TUI does not need to know costs or prereqs - the server
-// rejects illegal queues - but it does need a stable order to render lists.
+// Static catalogs of the item keys the server accepts, paired with display
+// labels. These power command autocomplete and the headless line client. They
+// are intentionally plain string literals (not derived from the game-math
+// package) so the whole tui package stays presentation-only; the server rejects
+// any key it does not recognise, so an accidental drift is caught at the API.
 package tui
-
-import "github.com/cobanov/terminal-army-go/internal/game"
 
 // CatalogItem is a (key, label) pair.
 type CatalogItem struct {
@@ -11,70 +11,87 @@ type CatalogItem struct {
 	Label string
 }
 
-// BuildingCatalog is the order shown in the buildings screen. Mirrors the
-// server's known building set so users never queue a key the server rejects.
+// BuildingCatalog is the union of resource and facility buildings, in the order
+// the server exposes them.
 var BuildingCatalog = []CatalogItem{
-	{string(game.BuildingMetalMine), "Metal Mine"},
-	{string(game.BuildingCrystalMine), "Crystal Mine"},
-	{string(game.BuildingDeuteriumSynthesizer), "Deuterium Synthesizer"},
-	{string(game.BuildingSolarPlant), "Solar Plant"},
-	{string(game.BuildingFusionReactor), "Fusion Reactor"},
-	{string(game.BuildingSolarSatellite), "Solar Satellite"},
-	{string(game.BuildingCrawler), "Crawler"},
-	{string(game.BuildingMetalStorage), "Metal Storage"},
-	{string(game.BuildingCrystalStorage), "Crystal Storage"},
-	{string(game.BuildingDeuteriumTank), "Deuterium Tank"},
-	{string(game.BuildingRoboticsFactory), "Robotics Factory"},
-	{string(game.BuildingShipyard), "Shipyard"},
-	{string(game.BuildingResearchLab), "Research Lab"},
-	{string(game.BuildingNaniteFactory), "Nanite Factory"},
-	{string(game.BuildingMissileSilo), "Missile Silo"},
-	{string(game.BuildingAllianceDepot), "Alliance Depot"},
-	{string(game.BuildingTerraformer), "Terraformer"},
+	{"metal_mine", "Metal Mine"},
+	{"crystal_mine", "Crystal Mine"},
+	{"deuterium_synthesizer", "Deuterium Synthesizer"},
+	{"solar_plant", "Solar Plant"},
+	{"fusion_reactor", "Fusion Reactor"},
+	{"solar_satellite", "Solar Satellite"},
+	{"crawler", "Crawler"},
+	{"metal_storage", "Metal Storage"},
+	{"crystal_storage", "Crystal Storage"},
+	{"deuterium_tank", "Deuterium Tank"},
+	{"robotics_factory", "Robotics Factory"},
+	{"shipyard", "Shipyard"},
+	{"research_lab", "Research Laboratory"},
+	{"nanite_factory", "Nanite Factory"},
+	{"missile_silo", "Missile Silo"},
+	{"alliance_depot", "Alliance Depot"},
+	{"terraformer", "Terraformer"},
 }
 
 // ResearchCatalog is the order shown in the research screen.
 var ResearchCatalog = []CatalogItem{
-	{string(game.TechEnergy), "Energy Technology"},
-	{string(game.TechLaser), "Laser Technology"},
-	{string(game.TechIon), "Ion Technology"},
-	{string(game.TechHyperspace), "Hyperspace Technology"},
-	{string(game.TechPlasma), "Plasma Technology"},
-	{string(game.TechComputer), "Computer Technology"},
-	{string(game.TechAstrophysics), "Astrophysics"},
-	{string(game.TechEspionage), "Espionage Technology"},
-	{string(game.TechCombustionDrive), "Combustion Drive"},
-	{string(game.TechImpulseDrive), "Impulse Drive"},
-	{string(game.TechHyperspaceDrive), "Hyperspace Drive"},
-	{string(game.TechWeapons), "Weapons Technology"},
-	{string(game.TechShielding), "Shielding Technology"},
-	{string(game.TechArmour), "Armour Technology"},
+	{"energy", "Energy Technology"},
+	{"laser", "Laser Technology"},
+	{"ion", "Ion Technology"},
+	{"hyperspace", "Hyperspace Technology"},
+	{"plasma", "Plasma Technology"},
+	{"computer", "Computer Technology"},
+	{"astrophysics", "Astrophysics"},
+	{"espionage", "Espionage Technology"},
+	{"combustion_drive", "Combustion Drive"},
+	{"impulse_drive", "Impulse Drive"},
+	{"hyperspace_drive", "Hyperspace Drive"},
+	{"weapons", "Weapons Technology"},
+	{"shielding", "Shielding Technology"},
+	{"armour", "Armour Technology"},
 }
 
 // ShipCatalog is the order shown in the shipyard screen.
 var ShipCatalog = []CatalogItem{
-	{string(game.ShipSmallCargo), "Small Cargo"},
-	{string(game.ShipLargeCargo), "Large Cargo"},
-	{string(game.ShipLightFighter), "Light Fighter"},
-	{string(game.ShipHeavyFighter), "Heavy Fighter"},
-	{string(game.ShipCruiser), "Cruiser"},
-	{string(game.ShipBattleship), "Battleship"},
-	{string(game.ShipBattlecruiser), "Battlecruiser"},
-	{string(game.ShipBomber), "Bomber"},
-	{string(game.ShipDestroyer), "Destroyer"},
-	{string(game.ShipRecycler), "Recycler"},
-	{string(game.ShipEspionageProbe), "Espionage Probe"},
-	{string(game.ShipColonyShip), "Colony Ship"},
+	{"small_cargo", "Small Cargo"},
+	{"large_cargo", "Large Cargo"},
+	{"light_fighter", "Light Fighter"},
+	{"heavy_fighter", "Heavy Fighter"},
+	{"cruiser", "Cruiser"},
+	{"battleship", "Battleship"},
+	{"battlecruiser", "Battlecruiser"},
+	{"bomber", "Bomber"},
+	{"destroyer", "Destroyer"},
+	{"recycler", "Recycler"},
+	{"espionage_probe", "Espionage Probe"},
+	{"colony_ship", "Colony Ship"},
 }
 
 // DefenseCatalog is the order shown in the defense screen.
 var DefenseCatalog = []CatalogItem{
-	{string(game.DefenseRocketLauncher), "Rocket Launcher"},
-	{string(game.DefenseLightLaser), "Light Laser"},
-	{string(game.DefenseHeavyLaser), "Heavy Laser"},
-	{string(game.DefenseGaussCannon), "Gauss Cannon"},
-	{string(game.DefenseIonCannon), "Ion Cannon"},
-	{string(game.DefensePlasmaTurret), "Plasma Turret"},
-	{string(game.DefenseSmallShieldDome), "Small Shield Dome"},
-	{string(game.DefenseLargeShieldDome), "Large Shield Dome"},
+	{"rocket_launcher", "Rocket Launcher"},
+	{"light_laser", "Light Laser"},
+	{"heavy_laser", "Heavy Laser"},
+	{"gauss_cannon", "Gauss Cannon"},
+	{"ion_cannon", "Ion Cannon"},
+	{"plasma_turret", "Plasma Turret"},
+	{"small_shield_dome", "Small Shield Dome"},
+	{"large_shield_dome", "Large Shield Dome"},
+}
+
+func catalogKeys(rows []CatalogItem) []string {
+	keys := make([]string, 0, len(rows))
+	for _, row := range rows {
+		keys = append(keys, row.Key)
+	}
+	return keys
+}
+
+func allCatalogKeys() []string {
+	var keys []string
+	keys = append(keys, catalogKeys(BuildingCatalog)...)
+	keys = append(keys, catalogKeys(ResearchCatalog)...)
+	keys = append(keys, catalogKeys(ShipCatalog)...)
+	keys = append(keys, catalogKeys(DefenseCatalog)...)
+	return keys
 }

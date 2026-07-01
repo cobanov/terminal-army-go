@@ -153,6 +153,59 @@ func (c *Client) GetQueues(ctx context.Context, planetID int64) ([]svc.QueueItem
 	return out, nil
 }
 
+// PlanetBuildings returns the render-ready resource-building rows for a planet:
+// level, next-level cost, build time, affordability, and lock state all
+// resolved server-side.
+func (c *Client) PlanetBuildings(ctx context.Context, planetID int64) ([]svc.BuildingView, error) {
+	var out []svc.BuildingView
+	path := fmt.Sprintf("/api/v1/planets/%d/buildings", planetID)
+	if err := c.do(ctx, "GET", path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PlanetFacilities returns the render-ready facility-building rows for a planet.
+func (c *Client) PlanetFacilities(ctx context.Context, planetID int64) ([]svc.BuildingView, error) {
+	var out []svc.BuildingView
+	path := fmt.Sprintf("/api/v1/planets/%d/facilities", planetID)
+	if err := c.do(ctx, "GET", path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PlanetResearch returns the research view (levels, costs, prereqs, tree
+// parents) for a planet's owner.
+func (c *Client) PlanetResearch(ctx context.Context, planetID int64) (*svc.ResearchView, error) {
+	out := &svc.ResearchView{}
+	path := fmt.Sprintf("/api/v1/planets/%d/research", planetID)
+	if err := c.do(ctx, "GET", path, nil, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PlanetShipyard returns the buildable-ship rows for a planet.
+func (c *Client) PlanetShipyard(ctx context.Context, planetID int64) ([]svc.UnitView, error) {
+	var out []svc.UnitView
+	path := fmt.Sprintf("/api/v1/planets/%d/shipyard", planetID)
+	if err := c.do(ctx, "GET", path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// PlanetDefense returns the buildable-defense rows for a planet.
+func (c *Client) PlanetDefense(ctx context.Context, planetID int64) ([]svc.UnitView, error) {
+	var out []svc.UnitView
+	path := fmt.Sprintf("/api/v1/planets/%d/defense", planetID)
+	if err := c.do(ctx, "GET", path, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QueueBuilding enqueues a single upgrade for the named building key
 // (e.g. "metal_mine"). The server decides the target level.
 func (c *Client) QueueBuilding(ctx context.Context, planetID int64, building string) (*svc.QueueItem, error) {

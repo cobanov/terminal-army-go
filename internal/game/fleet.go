@@ -51,10 +51,13 @@ func ShipSpeed(ship ShipType, techLevels map[TechType]int) int {
 
 // FlightDurationSeconds applies the OGame travel-time formula:
 //
-//	t = (3500 * sqrt(distance * 10 / fleetSpeed) / fleetSpeed + 10) / universeSpeedFleet
+//	t = (10 + (3500 / speedFactor) * sqrt(10 * distance / fleetSpeed)) / universeSpeedFleet
 //
 // fleetSpeed is the slowest ship in the fleet; speedPercent is the player's
-// chosen throttle (10-100, in 10% steps).
+// chosen throttle (10-100, in 10% steps), applied as speedFactor = pct/100 so
+// only the square-root term is scaled by the throttle. universeSpeedFleet is
+// the universe's fleet-speed multiplier.
+// Source: https://ogame.fandom.com/wiki/Distance
 func FlightDurationSeconds(distanceUnits, fleetSpeed, universeSpeedFleet, speedPercent int) int {
 	if fleetSpeed <= 0 {
 		return 1
@@ -64,9 +67,9 @@ func FlightDurationSeconds(distanceUnits, fleetSpeed, universeSpeedFleet, speedP
 	}
 	sp := clampInt(speedPercent, 10, 100)
 	spFactor := float64(sp) / 100.0
-	base := (3500.0*math.Sqrt(float64(distanceUnits)*10.0/float64(fleetSpeed))/float64(fleetSpeed) + 10.0) /
+	base := (10.0 + (3500.0/spFactor)*math.Sqrt(10.0*float64(distanceUnits)/float64(fleetSpeed))) /
 		float64(universeSpeedFleet)
-	secs := int(base / spFactor)
+	secs := int(base)
 	if secs < 1 {
 		secs = 1
 	}
@@ -74,8 +77,10 @@ func FlightDurationSeconds(distanceUnits, fleetSpeed, universeSpeedFleet, speedP
 }
 
 // FleetFuelConsumption is a simplified per-fleet fuel cost: each ship
-// contributes count * baseFuel * (distance / 35000) * (0.5 + sp)^2 deuterium.
-// This closely tracks the full OGame curve without modelling per-ship speed.
+// contributes count * baseFuel * (distance / 35000) * (1 + sp)^2 deuterium,
+// matching the OGame consumption curve's speed factor without modelling
+// per-ship speed.
+// Source: https://ogame.fandom.com/wiki/Fuel_Consumption
 func FleetFuelConsumption(
 	ships map[ShipType]int,
 	distanceUnits int,
@@ -85,7 +90,7 @@ func FleetFuelConsumption(
 		return 0
 	}
 	sp := float64(clampInt(speedPercent, 10, 100)) / 100.0
-	speedTerm := (0.5 + sp) * (0.5 + sp)
+	speedTerm := (1.0 + sp) * (1.0 + sp)
 	total := 0.0
 	for st, count := range ships {
 		if count <= 0 {
@@ -244,17 +249,17 @@ func BuildUnitsFromDefenses(
 
 // CombatResult is the aggregated outcome of a single combat resolution.
 type CombatResult struct {
-	AttackerRemaining          map[string]int
-	DefenderShipsRemaining     map[string]int
-	DefenderDefensesRemaining  map[string]int
-	AttackerDestroyed          map[string]int
-	DefenderShipsDestroyed     map[string]int
-	DefenderDefensesDestroyed  map[string]int
-	AttackerTotalAttack        int
-	DefenderTotalAttack        int
-	Winner                     string
-	DebrisMetal                int
-	DebrisCrystal              int
+	AttackerRemaining         map[string]int
+	DefenderShipsRemaining    map[string]int
+	DefenderDefensesRemaining map[string]int
+	AttackerDestroyed         map[string]int
+	DefenderShipsDestroyed    map[string]int
+	DefenderDefensesDestroyed map[string]int
+	AttackerTotalAttack       int
+	DefenderTotalAttack       int
+	Winner                    string
+	DebrisMetal               int
+	DebrisCrystal             int
 }
 
 // SimulateCombat applies one round of damage exchange. Each side pools its

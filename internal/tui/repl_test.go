@@ -80,119 +80,56 @@ func TestSuggestionsForInput(t *testing.T) {
 	})
 }
 
-func TestConsoleCockpitViewContainsMajorRegions(t *testing.T) {
-	now := time.Now()
-	input := textinput.New()
-	input.Prompt = "tarmy> "
-	model := consoleModel{
-		ctx:   context.Background(),
-		input: input,
-		session: &replSession{
-			client: client.New("https://terminal.army"),
-			user:   &svc.User{Username: "cobanov", Email: "cobanov@example.test", Role: "player"},
-			planets: []svc.Planet{{
-				ID:                     1,
-				Code:                   "3LS5",
-				Name:                   "Homeworld",
-				Galaxy:                 6,
-				System:                 262,
-				Position:               11,
-				FieldsUsed:             37,
-				FieldsTotal:            138,
-				TempMin:                -28,
-				TempMax:                12,
-				Metal:                  209000,
-				Crystal:                178700,
-				Deuterium:              101900,
-				EnergyProduced:         753,
-				EnergyUsed:             554,
-				ResourcesLastUpdatedAt: now,
-			}},
-		},
-		width:  140,
-		height: 42,
-		log:    []string{"resources", "metal_mine 11"},
-		side: consoleSideState{
-			planetID: 1,
-			production: &svc.ProductionReport{
-				MetalPerHour:     4858,
-				CrystalPerHour:   880,
-				DeuteriumPerHour: 506,
-				ProductionFactor: 1,
-			},
-			queues: []svc.QueueItem{{
-				ID:          9,
-				QueueType:   "building",
-				ItemKey:     "metal_mine",
-				TargetLevel: 12,
-				FinishedAt:  now.Add(2 * time.Minute),
-			}},
+func TestAppViewContainsMajorRegions(t *testing.T) {
+	m := testAppModel(t, 140, 42)
+	m.active = viewBuildings
+	m.data = viewData{
+		loaded: viewBuildings,
+		buildings: []svc.BuildingView{
+			{Key: "metal_mine", Label: "Metal Mine", Level: 11, NextCost: svc.Cost{Metal: 24500, Crystal: 6100}, BuildSeconds: 1930, Affordable: true},
 		},
 	}
-	view := model.View()
-	for _, want := range []string{"PLANET", "RESEARCH", "FLEET", "PLANETS", "QUEUES (1/5)", "metal_mine L12", "terminal.army", "Homeworld", "M 209.0k"} {
+	m.rail = railData{queues: []svc.QueueItem{{ID: 9, QueueType: "building", ItemKey: "metal_mine", TargetLevel: 12, FinishedAt: time.Now().Add(2 * time.Minute)}}}
+	view := m.View()
+	for _, want := range []string{"EMPIRE", "OPS", "SOCIAL", "BUILDINGS", "QUEUE", "tarmy", "HOMEWORLD", "Metal Mine"} {
 		if !strings.Contains(view, want) {
-			t.Fatalf("cockpit view missing %q\n%s", want, view)
+			t.Fatalf("app view missing %q\n%s", want, view)
 		}
 	}
-	assertMaxLineWidth(t, view, model.width)
+	assertMaxLineWidth(t, view, m.width)
 }
 
-func TestConsoleCockpitViewDoesNotOverflowWideTerminal(t *testing.T) {
-	model := testConsoleModel(t, 238, 60)
-	assertMaxLineWidth(t, model.View(), model.width)
+func TestAppViewDoesNotOverflowWideTerminal(t *testing.T) {
+	m := testAppModel(t, 238, 60)
+	assertMaxLineWidth(t, m.View(), m.width)
 }
 
-func TestConsoleCockpitViewRespondsToNarrowTerminals(t *testing.T) {
-	for _, size := range []struct {
-		width  int
-		height int
-	}{
-		{width: 96, height: 36},
-		{width: 80, height: 32},
-		{width: 60, height: 26},
-		{width: 40, height: 18},
-		{width: 28, height: 12},
+func TestAppViewRespondsToTerminalSizes(t *testing.T) {
+	for _, size := range []struct{ width, height int }{
+		{160, 48}, {120, 40}, {96, 36}, {80, 32}, {60, 26}, {40, 18},
 	} {
 		t.Run(fmt.Sprintf("%dx%d", size.width, size.height), func(t *testing.T) {
-			model := testConsoleModel(t, size.width, size.height)
-			view := model.View()
+			m := testAppModel(t, size.width, size.height)
+			view := m.View()
 			assertMaxLineWidth(t, view, size.width)
 			assertMaxLineCount(t, view, size.height)
 		})
 	}
 }
 
-func testConsoleModel(t *testing.T, width, height int) consoleModel {
+func testAppModel(t *testing.T, width, height int) appModel {
 	t.Helper()
-	now := time.Now()
-	input := textinput.New()
-	input.Prompt = "tarmy> "
-	return consoleModel{
-		ctx:   context.Background(),
-		input: input,
-		session: &replSession{
-			client: client.New("https://terminal.army"),
-			user:   &svc.User{Username: "cobanov", Email: "cobanov@example.test", Role: "player"},
-			planets: []svc.Planet{
-				{ID: 1, Code: "3SXQ7YSQ", Name: "Homeworld", Galaxy: 7, System: 447, Position: 12, FieldsUsed: 3, FieldsTotal: 108, TempMin: -15, TempMax: 25, Metal: 225, Crystal: 435, EnergyProduced: 0, EnergyUsed: 0},
-			},
+	m := newAppModel(context.Background(), &replSession{
+		client: client.New("https://terminal.army"),
+		user:   &svc.User{Username: "cobanov", Email: "cobanov@example.test", Role: "player"},
+		planets: []svc.Planet{
+			{ID: 1, Code: "3SXQ7YSQ", Name: "Homeworld", Galaxy: 7, System: 447, Position: 12, FieldsUsed: 3, FieldsTotal: 108, TempMin: -15, TempMax: 25, Metal: 209000, Crystal: 178700, Deuterium: 101900, EnergyProduced: 753, EnergyUsed: 554},
 		},
-		width:  width,
-		height: height,
-		log:    []string{"resources", "metal_mine 11", "very long command output that should be truncated rather than wrapping past the terminal edge"},
-		side: consoleSideState{
-			planetID: 1,
-			queues: []svc.QueueItem{{
-				ID:          4,
-				QueueType:   "building",
-				ItemKey:     "metal_mine",
-				TargetLevel: 4,
-				StartedAt:   now.Add(-time.Minute),
-				FinishedAt:  now.Add(3 * time.Minute),
-			}},
-		},
-	}
+	})
+	m.width, m.height = width, height
+	m.log = []string{"resources", "metal_mine 11", "very long command output that should be truncated rather than wrapping past the terminal edge and never overflow"}
+	_ = textinput.New()
+	return m
 }
 
 func assertMaxLineWidth(t *testing.T, view string, maxWidth int) {

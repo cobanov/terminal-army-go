@@ -23,7 +23,6 @@ func newRootCmd() *cobra.Command {
 	root.Flags().BoolVar(&logout, "logout", false, "delete saved key for this server and exit")
 	root.AddCommand(
 		newServeCmd(),
-		newPlayCmd(),
 		newUpdateCmd(),
 		newMigrateCmd(),
 		newAdminCmd(),

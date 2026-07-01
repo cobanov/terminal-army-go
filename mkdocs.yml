@@ -1,0 +1,57 @@
+site_name: terminal.army
+site_description: An OGame-style multiplayer strategy game you play from your terminal.
+site_url: https://docs.terminal.army
+repo_url: https://github.com/cobanov/terminal-army-go
+repo_name: cobanov/terminal-army-go
+copyright: Made by Mert Cobanov · game mechanics from the OGame Fandom Wiki
+
+# Public documentation site lives in www/ so it stays separate from the
+# repo's internal design/audit docs under docs/.
+docs_dir: www
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Play:
+      - Install: install.md
+      - Commands: commands.md
+  - Game mechanics: mechanics.md
+  - Self-hosting: self-hosting.md
+  - Development: development.md

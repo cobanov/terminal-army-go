@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +11,28 @@ import (
 	"github.com/cobanov/terminal-army-go/internal/svc"
 	"github.com/go-chi/chi/v5"
 )
+
+// planetViewHandler adapts a per-planet read-model method (buildings,
+// facilities, research, shipyard, defense) into an HTTP handler. It resolves
+// the authenticated user and the {planetID} route param, then writes the
+// service result as JSON. All the game math happens inside fn (in svc), so the
+// handler stays a thin translation layer.
+func planetViewHandler[T any](fn func(ctx context.Context, userID, planetID int64) (T, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uid := auth.UserIDFromContext(r.Context())
+		pid, err := planetID(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid planet id")
+			return
+		}
+		out, err := fn(r.Context(), uid, pid)
+		if err != nil {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
+}
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")

@@ -76,6 +76,25 @@ var BuildingLabels = map[BuildingType]string{
 // TechType identifies one of the research technologies.
 type TechType string
 
+// ResearchTechs is the canonical display order for the research view. The
+// read-model iterates this so clients never hard-code the tech list.
+var ResearchTechs = []TechType{
+	TechEnergy,
+	TechLaser,
+	TechIon,
+	TechHyperspace,
+	TechPlasma,
+	TechComputer,
+	TechAstrophysics,
+	TechEspionage,
+	TechCombustionDrive,
+	TechImpulseDrive,
+	TechHyperspaceDrive,
+	TechWeapons,
+	TechShielding,
+	TechArmour,
+}
+
 const (
 	TechEnergy          TechType = "energy"
 	TechLaser           TechType = "laser"
@@ -146,6 +165,22 @@ var ShipLabels = map[ShipType]string{
 	ShipBattlecruiser:  "Battlecruiser",
 }
 
+// Ships is the canonical display order for the shipyard view.
+var Ships = []ShipType{
+	ShipSmallCargo,
+	ShipLargeCargo,
+	ShipLightFighter,
+	ShipHeavyFighter,
+	ShipCruiser,
+	ShipBattleship,
+	ShipBattlecruiser,
+	ShipBomber,
+	ShipDestroyer,
+	ShipRecycler,
+	ShipEspionageProbe,
+	ShipColonyShip,
+}
+
 // DefenseType identifies one of the buildable defenses.
 // Source: https://ogame.fandom.com/wiki/Defense
 type DefenseType string
@@ -171,6 +206,18 @@ var DefenseLabels = map[DefenseType]string{
 	DefensePlasmaTurret:    "Plasma Turret",
 	DefenseSmallShieldDome: "Small Shield Dome",
 	DefenseLargeShieldDome: "Large Shield Dome",
+}
+
+// Defenses is the canonical display order for the defense view.
+var Defenses = []DefenseType{
+	DefenseRocketLauncher,
+	DefenseLightLaser,
+	DefenseHeavyLaser,
+	DefenseGaussCannon,
+	DefenseIonCannon,
+	DefensePlasmaTurret,
+	DefenseSmallShieldDome,
+	DefenseLargeShieldDome,
 }
 
 // TempRange is the inclusive (low, high) range a planet's T_max may fall into
@@ -339,7 +386,7 @@ var TechPrerequisites = map[TechType][]TechPrereqEntry{
 		{Tech: TechEnergy, Level: 4},
 		{Tech: TechLaser, Level: 5},
 	},
-	TechHyperspace: {{LabLevel: 7}, {Tech: TechEnergy, Level: 5}},
+	TechHyperspace: {{LabLevel: 7}, {Tech: TechEnergy, Level: 5}, {Tech: TechShielding, Level: 5}},
 	TechPlasma: {
 		{LabLevel: 4},
 		{Tech: TechEnergy, Level: 8},
@@ -351,10 +398,15 @@ var TechPrerequisites = map[TechType][]TechPrereqEntry{
 	TechEspionage:       {{LabLevel: 3}},
 	TechCombustionDrive: {{LabLevel: 1}, {Tech: TechEnergy, Level: 1}},
 	TechImpulseDrive:    {{LabLevel: 2}, {Tech: TechEnergy, Level: 1}},
-	TechHyperspaceDrive: {{LabLevel: 7}, {Tech: TechHyperspace, Level: 3}},
-	TechWeapons:         {{LabLevel: 4}},
-	TechShielding:       {{LabLevel: 6}, {Tech: TechEnergy, Level: 3}},
-	TechArmour:          {{LabLevel: 2}},
+	TechHyperspaceDrive: {
+		{LabLevel: 7},
+		{Tech: TechEnergy, Level: 5},
+		{Tech: TechShielding, Level: 5},
+		{Tech: TechHyperspace, Level: 3},
+	},
+	TechWeapons:   {{LabLevel: 4}},
+	TechShielding: {{LabLevel: 6}, {Tech: TechEnergy, Level: 3}},
+	TechArmour:    {{LabLevel: 2}},
 }
 
 // BuildingPrereqEntry is one prerequisite line for a building. A building can
@@ -416,7 +468,7 @@ var ShipStats = map[ShipType]ShipStat{
 	ShipColonyShip:     {10000, 20000, 10000, 30000, 100, 50, 2500, 7500, 1000},
 	ShipRecycler:       {10000, 6000, 2000, 16000, 10, 1, 2000, 20000, 300},
 	ShipEspionageProbe: {0, 1000, 0, 1000, 1, 1, 100_000_000, 5, 1},
-	ShipBomber:         {50000, 25000, 15000, 75000, 500, 1000, 4000, 500, 1000},
+	ShipBomber:         {50000, 25000, 15000, 75000, 500, 1000, 4000, 500, 700},
 	ShipDestroyer:      {60000, 50000, 15000, 110000, 500, 2000, 5000, 2000, 1000},
 	ShipBattlecruiser:  {30000, 40000, 15000, 70000, 400, 700, 10000, 750, 250},
 }

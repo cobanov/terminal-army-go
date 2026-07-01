@@ -93,6 +93,63 @@ type ProductionReport struct {
 	StorageCapDeuterium int     `json:"storage_cap_deuterium"`
 }
 
+// Cost is a resolved resource cost for one build/research/unit action. Energy
+// is the marginal energy the action consumes (mines) and is 0 for everything
+// else.
+type Cost struct {
+	Metal     float64 `json:"metal"`
+	Crystal   float64 `json:"crystal"`
+	Deuterium float64 `json:"deuterium"`
+	Energy    int     `json:"energy,omitempty"`
+}
+
+// BuildingView is a render-ready row for the buildings / facilities screens.
+// Every field the client needs to draw the row and decide whether the action
+// is available is resolved server-side, so the TUI never imports internal/game.
+type BuildingView struct {
+	Key          string `json:"key"`
+	Label        string `json:"label"`
+	Category     string `json:"category"` // resource | facility
+	Level        int    `json:"level"`
+	NextCost     Cost   `json:"next_cost"`
+	BuildSeconds int    `json:"build_seconds"`
+	Affordable   bool   `json:"affordable"`
+	Locked       bool   `json:"locked"`
+	LockedReason string `json:"locked_reason,omitempty"`
+}
+
+// UnitView is a render-ready row for the shipyard / defense screens.
+type UnitView struct {
+	Key          string `json:"key"`
+	Label        string `json:"label"`
+	Owned        int    `json:"owned"`
+	UnitCost     Cost   `json:"unit_cost"`
+	BuildSeconds int    `json:"build_seconds"` // per-unit build time
+	BuildableNow int    `json:"buildable_now"` // how many current resources allow
+	Locked       bool   `json:"locked"`
+	LockedReason string `json:"locked_reason,omitempty"`
+}
+
+// ResearchNode is one row in the research view, with tree parent resolved.
+type ResearchNode struct {
+	Key          string `json:"key"`
+	Label        string `json:"label"`
+	Level        int    `json:"level"`
+	NextCost     Cost   `json:"next_cost"`
+	BuildSeconds int    `json:"build_seconds"`
+	Parent       string `json:"parent,omitempty"`
+	Affordable   bool   `json:"affordable"`
+	Locked       bool   `json:"locked"`
+	LockedReason string `json:"locked_reason,omitempty"`
+}
+
+// ResearchView is the response to GET /planets/{id}/research. LabLevel is the
+// highest Research Lab across the user's planets (the research-time ceiling).
+type ResearchView struct {
+	LabLevel int            `json:"lab_level"`
+	Nodes    []ResearchNode `json:"nodes"`
+}
+
 // QueueItem is one row in a planet's build / shipyard / research queue.
 type QueueItem struct {
 	ID          int64     `json:"id"`
