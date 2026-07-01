@@ -48,7 +48,11 @@ func Run(ctx context.Context) error {
 		Addr:              cfg.HTTPAddr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		// ReadTimeout bounds slow-body (slowloris) requests. WriteTimeout is
+		// intentionally left unset: the /ws endpoint hijacks the connection for
+		// long-lived streaming and a global write deadline would sever it.
+		ReadTimeout: 15 * time.Second,
+		IdleTimeout: 60 * time.Second,
 	}
 
 	sched := scheduler.New(app, cfg.SchedulerTick)
