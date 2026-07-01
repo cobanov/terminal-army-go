@@ -482,124 +482,63 @@ td form button {
 .site-version .version-note { display: block; margin-top: 0.15rem; opacity: 0.7; }
 
 /* ============================================================
-   Landing redesign — hero, terminal window, features, stats.
-   Palette stays black + amber; these components refine the
-   shared shell (buttons/type flow to login/signup/alliance).
+   Landing — clean single-column terminal showcase.
+   Black + amber; buttons/cursor also refine login/signup.
    ============================================================ */
 
-/* Subtle CRT scanline overlay — kept very faint so it reads as
-   texture, not a gimmick. pointer-events:none so it never blocks. */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 50;
-  background: repeating-linear-gradient(
-    0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
-  opacity: 0.35;
-}
-
-/* --- hero --- */
-.hero { text-align: center; padding: 2.5rem 1rem 1rem; }
-.hero-frame { max-width: 760px; margin: 0 auto; }
-.hero-frame-bar {
-  display: flex; justify-content: space-between;
-  color: #525252; font-size: 0.72rem; letter-spacing: 0.08em;
-  border-bottom: 1px solid #1f1f1f; padding-bottom: 0.5rem; margin-bottom: 1.5rem;
-}
+.hero { text-align: center; padding: 1.5rem 1rem 1.75rem; }
 .wordmark {
   margin: 0; font-weight: 700; color: #fbbf24;
-  font-size: clamp(2rem, 9vw, 3.6rem);
-  letter-spacing: 0.06em; line-height: 1.05;
-  text-shadow: 0 0 18px rgba(251, 191, 36, 0.35), 0 0 2px rgba(251, 191, 36, 0.6);
+  font-size: clamp(1.9rem, 8vw, 3rem);
+  letter-spacing: 0.06em; line-height: 1.1;
+  text-shadow: 0 0 14px rgba(251, 191, 36, 0.22);
 }
-.wordmark .dot { color: #84cc16; text-shadow: 0 0 18px rgba(132, 204, 22, 0.5); }
+.wordmark .dot { color: #84cc16; }
 .hero-sub {
-  color: #737373; font-size: 0.78rem; letter-spacing: 0.28em;
-  text-transform: uppercase; margin: 0.9rem 0 1.4rem;
+  color: #737373; font-size: 0.74rem; letter-spacing: 0.26em;
+  text-transform: uppercase; margin: 0.8rem 0 0;
 }
-.hero-lead {
-  max-width: 560px; margin: 0 auto 1.8rem; color: #a3a3a3;
-  font-size: 0.95rem; line-height: 1.7;
-}
-.hero-cta { display: flex; gap: 0.8rem; justify-content: center; flex-wrap: wrap; }
 
-/* --- CTA buttons (shared) --- */
+/* CTA button (also used on auth pages) */
 .cta {
-  display: inline-block; padding: 0.7rem 1.4rem; font-family: inherit;
-  font-size: 0.82rem; letter-spacing: 0.12em; text-transform: uppercase;
-  text-decoration: none; border: 1px solid; cursor: pointer;
-  transition: all 0.15s ease;
+  display: inline-block; padding: 0.7rem 1.2rem; font-family: inherit;
+  font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase;
+  text-decoration: none; border: 1px solid; cursor: pointer; transition: all 0.15s ease;
 }
-.cta-primary {
-  background: #fbbf24; color: #000; border-color: #fbbf24; font-weight: 700;
-  box-shadow: 0 0 22px rgba(251, 191, 36, 0.22);
-}
-.cta-primary:hover { background: #fde68a; border-color: #fde68a; color: #000; }
+.cta-primary { background: #fbbf24; color: #000; border-color: #fbbf24; font-weight: 700; }
+.cta-primary:hover { background: #fde68a; color: #000; }
 .cta-ghost { background: transparent; color: #d4d4d4; border-color: #333; }
 .cta-ghost:hover { border-color: #fbbf24; color: #fbbf24; }
 .cta-block { display: block; width: 100%; text-align: center; margin-top: 1rem; }
 
-/* --- terminal window (the centerpiece) --- */
-.termwrap { max-width: 720px; margin: 2.5rem auto; padding: 0 1rem; }
+/* terminal demo window */
 .terminalwin {
-  border: 1px solid #262626; background: #050505; border-radius: 6px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.05), 0 24px 60px -20px rgba(0, 0, 0, 0.9);
+  border: 1px solid #262626; background: #050505; border-radius: 6px; overflow: hidden;
 }
 .termbar {
-  display: flex; align-items: center; gap: 0.45rem;
-  background: #111; padding: 0.55rem 0.8rem; border-bottom: 1px solid #1f1f1f;
+  display: flex; align-items: center; gap: 0.45rem; background: #111;
+  padding: 0.5rem 0.75rem; border-bottom: 1px solid #1f1f1f;
 }
-.tdot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.tdot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .tdot.r { background: #ff5f56; } .tdot.y { background: #ffbd2e; } .tdot.g { background: #27c93f; }
-.termtitle { color: #737373; font-size: 0.75rem; margin-left: 0.5rem; }
+.termtitle { color: #737373; font-size: 0.72rem; margin-left: 0.5rem; }
 .termbody {
-  margin: 0; padding: 1.1rem 1.2rem; font-size: 0.82rem; line-height: 1.6;
+  margin: 0; padding: 1rem 1.1rem; font-size: 0.8rem; line-height: 1.6;
   color: #d4d4d4; white-space: pre; overflow-x: auto;
 }
 .c-dim { color: #525252; } .c-cmd { color: #67e8f9; } .c-prompt { color: #fbbf24; font-weight: 700; }
 .c-name { color: #fbbf24; font-weight: 700; } .c-coord { color: #facc15; }
 .c-metal { color: #facc15; } .c-crystal { color: #67e8f9; } .c-deut { color: #c084fc; }
 .c-good { color: #84cc16; } .c-tag { color: #c084fc; }
-.cursor {
-  color: #fbbf24; animation: blink 1.05s steps(1) infinite;
-}
+.cursor { color: #fbbf24; animation: blink 1.05s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
-/* --- feature row --- */
-.features {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
-  max-width: 960px; margin: 3rem auto 1rem;
+.feature-line {
+  text-align: center; color: #525252; font-size: 0.78rem;
+  letter-spacing: 0.04em; margin: 0.8rem 0 0;
 }
-.feature {
-  border: 1px solid #1f1f1f; background: #0a0a0a; padding: 1.2rem;
-  transition: border-color 0.15s ease, transform 0.15s ease;
-}
-.feature:hover { border-color: #333; transform: translateY(-2px); }
-.feature-glyph { color: #fbbf24; font-size: 1.5rem; line-height: 1; margin-bottom: 0.6rem; }
-.feature-name {
-  color: #fafafa; font-size: 0.82rem; letter-spacing: 0.08em;
-  text-transform: uppercase; margin-bottom: 0.5rem;
-}
-.feature p { color: #737373; font-size: 0.82rem; line-height: 1.55; margin: 0; }
 
-/* --- live stats strip --- */
-.statstrip {
-  max-width: 960px; margin: 2rem auto 0; padding: 0.85rem 1rem;
-  border: 1px solid #1f1f1f; background: #0a0a0a;
-  display: flex; flex-wrap: wrap; gap: 0.55rem; justify-content: center;
-  align-items: center; color: #737373; font-size: 0.82rem; letter-spacing: 0.03em;
-}
-.statstrip b { color: #fafafa; font-weight: 700; }
-.statstrip .sep { color: #333; }
-.statstrip .pulse { color: #27c93f; animation: blink 1.6s steps(1) infinite; margin-right: 0.2rem; }
-
-@media (max-width: 800px) {
-  .features { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 480px) {
-  .features { grid-template-columns: 1fr; }
-  .hero-lead { font-size: 0.9rem; }
-}
+/* live stats — one subtle line */
+.statline { text-align: center; color: #737373; font-size: 0.8rem; margin: 1.5rem 0 0; }
+.statline b { color: #d4d4d4; }
+.statline .pulse { color: #27c93f; animation: blink 1.6s steps(1) infinite; margin-right: 0.3rem; }

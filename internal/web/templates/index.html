@@ -1,114 +1,71 @@
 {{define "content"}}
 {{template "topbar" .}}
 
-<section class="hero">
-  <div class="hero-frame">
-    <div class="hero-frame-bar">
-      <span>┌─[ terminal.army ]</span>
-      <span class="dim">{{.Version}}</span>
-    </div>
+<div class="landing-content">
+  <section class="hero">
     <h1 class="wordmark">TERMINAL<span class="dot">.</span>ARMY</h1>
     <p class="hero-sub">command a galactic empire from your terminal</p>
-    <p class="hero-lead">
-      A terminal-native, multiplayer space-strategy game in the spirit of
-      OGame. Mines tick in real time, one shared universe, and the command
-      line is your cockpit.
-    </p>
-    <div class="hero-cta">
-      <a class="cta cta-primary" href="/signup">▸ start playing</a>
-      <a class="cta cta-ghost" href="#how">how it works</a>
-    </div>
-  </div>
-</section>
+  </section>
 
-<section class="termwrap" aria-hidden="true">
-  <div class="terminalwin">
-    <div class="termbar">
-      <span class="tdot r"></span><span class="tdot y"></span><span class="tdot g"></span>
-      <span class="termtitle">tarmy — commander@terminal.army</span>
-    </div>
-    <pre class="termbody"><span class="c-dim">$</span> <span class="c-cmd">tarmy</span>
-  connected as commander <span class="c-name">Zorthak</span> · universe <span class="c-coord">s1</span>
-<span class="c-prompt">tarmy&gt;</span> <span class="c-cmd">overview</span>
-  Homeworld <span class="c-coord">3:41:8</span>   M <span class="c-metal">1.24M</span>  C <span class="c-crystal">812K</span>  D <span class="c-deut">143K</span>   <span class="c-good">+2,140 e</span>
+  <div class="card">
+    <h2 class="card-title">Get started <small>two commands</small></h2>
+    <p class="hint" style="margin-bottom:0.5rem;">1 · install the CLI</p>
+    <pre class="key">curl -fsSL https://terminal.army/install.sh | sh</pre>
+    <p class="hint" style="margin:0.9rem 0 0.5rem;">2 · launch into the public universe</p>
+    <pre class="key">tarmy</pre>
+    <p class="hint" style="margin-top:0.9rem;">
+      No config needed — the CLI defaults to <code>{{.PublicURL}}</code>, opens a
+      browser sign-in, then hands control back to your terminal.
+    </p>
+    <a class="cta cta-primary cta-block" href="/signup">▸ create an account</a>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">What it looks like <small>your cockpit</small></h2>
+    <div class="terminalwin">
+      <div class="termbar">
+        <span class="tdot r"></span><span class="tdot y"></span><span class="tdot g"></span>
+        <span class="termtitle">tarmy</span>
+      </div>
+      <pre class="termbody"><span class="c-prompt">tarmy&gt;</span> <span class="c-cmd">overview</span>
+  Homeworld <span class="c-coord">3:41:8</span>   M <span class="c-metal">1.24M</span>  C <span class="c-crystal">812K</span>  D <span class="c-deut">143K</span>
 <span class="c-prompt">tarmy&gt;</span> <span class="c-cmd">build metal-mine</span>
   <span class="c-good">▸</span> queued Metal Mine <span class="c-good">L12</span> — done <span class="c-coord">15:06</span>
-<span class="c-prompt">tarmy&gt;</span> <span class="c-cmd">galaxy 2:88</span>
-   4  <span class="c-name">Zorthak</span>   <span class="c-tag">[VOID]</span>   <span class="c-good">● online</span>
-   7  <span class="c-dim">Kessler   — raided 2h ago</span>
 <span class="c-prompt">tarmy&gt;</span> <span class="c-cmd">fleet attack 2:88:7 cruiser=40</span>
   <span class="c-good">▸</span> fleet <span class="c-coord">#12</span> en route — ETA <span class="c-coord">01:44</span>
 <span class="c-prompt">tarmy&gt;</span> <span class="cursor">█</span></pre>
-  </div>
-</section>
-
-<section class="features" id="how">
-  <div class="feature">
-    <div class="feature-glyph">⬢</div>
-    <div class="feature-name">Real-time economy</div>
-    <p>Metal, crystal and deuterium accrue every second. Manage energy or your mines throttle.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-glyph">◈</div>
-    <div class="feature-name">One shared universe</div>
-    <p>Every commander plays in the same galaxy grid. Scout, expand, and stake your systems.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-glyph">⚔</div>
-    <div class="feature-name">Fleets &amp; warfare</div>
-    <p>Build ships, spy with probes, raid rivals, and colonize new worlds as Astrophysics unlocks them.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-glyph">⬟</div>
-    <div class="feature-name">Alliances</div>
-    <p>Band together, share intel, and dominate the rankings as an organized force.</p>
-  </div>
-</section>
-
-<section class="landing-content">
-  <div class="grid-2">
-    <div class="card">
-      <h2 class="card-title">Get started <small>two commands</small></h2>
-      <p class="hint" style="margin-bottom:0.5rem;">1 · install the CLI</p>
-      <pre class="key">curl -fsSL https://terminal.army/install.sh | sh</pre>
-      <p class="hint" style="margin:1rem 0 0.5rem 0;">2 · launch into the public universe</p>
-      <pre class="key">tarmy</pre>
-      <p class="hint" style="margin-top:1rem;">
-        No config needed. The CLI defaults to <code>{{.PublicURL}}</code>, opens
-        a browser sign-in, then hands control back to your terminal.
-      </p>
     </div>
-
-    <div class="card">
-      <h2 class="card-title">Top commanders <small>live rankings</small></h2>
-      {{if .Leaderboard}}
-        <table>
-          <tbody>
-            {{range .Leaderboard}}
-            <tr>
-              <td class="dim">#{{.Rank}}</td>
-              <td><b>{{.Username}}</b>{{if .Alliance}} <span class="c-tag">[{{.Alliance}}]</span>{{end}}</td>
-              <td class="right success">{{.Score}}</td>
-            </tr>
-            {{end}}
-          </tbody>
-        </table>
-      {{else}}
-        <p class="empty-state">No commanders yet. Be the first to deploy.</p>
-      {{end}}
-      <a class="cta cta-ghost cta-block" href="/signup">▸ claim your rank</a>
-    </div>
+    <p class="feature-line">real-time economy · one shared universe · fleets, spying &amp; combat · alliances</p>
   </div>
-</section>
 
-{{with .Stats}}
-<section class="statstrip">
-  <span class="pulse">●</span>
-  <span><b>{{.OnlinePlayers}}</b> online</span><span class="sep">·</span>
-  <span><b>{{.Players}}</b> commanders</span><span class="sep">·</span>
-  <span><b>{{.Planets}}</b> planets</span><span class="sep">·</span>
-  <span><b>{{.FleetsInFlight}}</b> fleets in flight</span><span class="sep">·</span>
-  <span><b>{{.Universes}}</b> universe(s)</span>
-</section>
-{{end}}
+  <div class="card">
+    <h2 class="card-title">Top commanders <small>live</small></h2>
+    {{if .Leaderboard}}
+      <table>
+        <tbody>
+          {{range .Leaderboard}}
+          <tr>
+            <td class="dim">#{{.Rank}}</td>
+            <td><b>{{.Username}}</b>{{if .Alliance}} <span class="c-tag">[{{.Alliance}}]</span>{{end}}</td>
+            <td class="right success">{{.Score}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    {{else}}
+      <p class="empty-state">No commanders yet. Be the first to deploy.</p>
+    {{end}}
+  </div>
+
+  {{with .Stats}}
+  <p class="statline">
+    <span class="pulse">●</span> <b>{{.OnlinePlayers}}</b> online · <b>{{.Players}}</b> commanders ·
+    <b>{{.Planets}}</b> planets · <b>{{.Universes}}</b> universe(s)
+  </p>
+  {{end}}
+
+  <p class="switch" style="margin-top:1.5rem;">
+    Source: <a href="https://github.com/cobanov/terminal-army-go">github.com/cobanov/terminal-army-go</a>
+  </p>
+</div>
 {{end}}
