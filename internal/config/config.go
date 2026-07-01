@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+// defaultInsecureJWTSecret is the development-only fallback. Load refuses to
+// start with it so a production deploy that forgets TARMY_JWT_SECRET fails
+// loudly instead of running with a secret that is public in this repository.
+const defaultInsecureJWTSecret = "insecure-dev-secret-change-me"
+
 type Config struct {
 	DatabaseURL    string
 	HTTPAddr       string
@@ -38,7 +43,7 @@ func Load() (*Config, error) {
 		ServerName:                   getenv("TARMY_SERVER_NAME", "s1"),
 		ServerDesc:                   getenv("TARMY_SERVER_DESCRIPTION", "the first universe"),
 		ServerMaxUsers:               getenvInt("TARMY_SERVER_MAX_USERS", 5000),
-		JWTSecret:                    getenv("TARMY_JWT_SECRET", "insecure-dev-secret-change-me"),
+		JWTSecret:                    getenv("TARMY_JWT_SECRET", defaultInsecureJWTSecret),
 		JWTTTL:                       time.Duration(getenvInt("TARMY_JWT_TTL_HOURS", 168)) * time.Hour,
 		BcryptCost:                   getenvInt("TARMY_BCRYPT_COST", 12),
 		SchedulerTick:                time.Duration(getenvInt("TARMY_SCHEDULER_INTERVAL_SECONDS", 5)) * time.Second,
@@ -53,6 +58,9 @@ func Load() (*Config, error) {
 	}
 	if len(c.JWTSecret) < 16 {
 		return nil, fmt.Errorf("TARMY_JWT_SECRET must be at least 16 characters")
+	}
+	if c.JWTSecret == defaultInsecureJWTSecret {
+		return nil, fmt.Errorf("TARMY_JWT_SECRET must be set to a private value; the built-in development default is not allowed")
 	}
 	return c, nil
 }

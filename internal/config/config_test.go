@@ -25,3 +25,11 @@ func TestLoadServerDefaults(t *testing.T) {
 		t.Fatalf("ServerMaxUsers = %d, want 5000", cfg.ServerMaxUsers)
 	}
 }
+
+func TestLoadRejectsInsecureDefaultSecret(t *testing.T) {
+	// Empty env falls back to the built-in default, which must be rejected.
+	t.Setenv("TARMY_JWT_SECRET", "")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load should reject the built-in default JWT secret")
+	}
+}
