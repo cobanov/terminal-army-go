@@ -171,4 +171,3 @@ func ListUsers(ctx context.Context, limit, offset int) error {
 	}
 	return tw.Flush()
 }
-
