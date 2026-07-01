@@ -17,6 +17,41 @@ type PlanetAttributes struct {
 	CrystalPositionBonus float64
 }
 
+// MaxPlanets returns the maximum number of planets (including the homeworld) a
+// player may own at the given Astrophysics level: 1 + ceil(level/2). So level 0
+// allows 1 planet, level 1 allows 2, then +1 at every odd level (3, 5, 7, ...).
+// Source: https://ogame.fandom.com/wiki/Astrophysics
+func MaxPlanets(astrophysicsLevel int) int {
+	if astrophysicsLevel < 0 {
+		astrophysicsLevel = 0
+	}
+	return 1 + (astrophysicsLevel+1)/2 // (level+1)/2 == ceil(level/2) for ints
+}
+
+// ColonizablePositionRange returns the inclusive slot-position band a player can
+// colonize at the given Astrophysics level. The band widens with the tech:
+// levels 1-3 → 4-12, 4-5 → 3-13, 6-7 → 2-14, 8+ → any (1-15).
+// Source: https://ogame.fandom.com/wiki/Astrophysics
+func ColonizablePositionRange(astrophysicsLevel int) (low, high int) {
+	switch {
+	case astrophysicsLevel >= 8:
+		return 1, 15
+	case astrophysicsLevel >= 6:
+		return 2, 14
+	case astrophysicsLevel >= 4:
+		return 3, 13
+	default:
+		return 4, 12
+	}
+}
+
+// CanColonizePosition reports whether the given slot position (1-15) is
+// colonizable at the given Astrophysics level.
+func CanColonizePosition(astrophysicsLevel, position int) bool {
+	low, high := ColonizablePositionRange(astrophysicsLevel)
+	return position >= low && position <= high
+}
+
 // GeneratePlanetAttributes rolls a new planet's attributes for the given slot
 // position (1-15). A non-nil rng makes the result deterministic; pass nil to
 // use a fresh source seeded by the global PRNG.

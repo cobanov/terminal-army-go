@@ -254,24 +254,26 @@ type FieldRange struct {
 	High int
 }
 
-// FieldsRangesByPosition gives the field range for each slot 1-15.
-// Source: https://ogame.fandom.com/wiki/Colonizing_in_Redesigned_Universes
+// FieldsRangesByPosition gives the base field roll range for each slot 1-15
+// (before Terraformer, class, and universe field bonuses). Values are the
+// documented redesigned-universe distribution.
+// Source: https://ogame.fandom.com/wiki/Colonization
 var FieldsRangesByPosition = map[int]FieldRange{
-	1:  {40, 80},
-	2:  {45, 90},
-	3:  {50, 100},
-	4:  {90, 175},
-	5:  {120, 230},
-	6:  {140, 260},
-	7:  {140, 260},
-	8:  {140, 260},
-	9:  {140, 260},
-	10: {100, 200},
-	11: {100, 200},
-	12: {100, 200},
-	13: {50, 110},
-	14: {50, 110},
-	15: {50, 110},
+	1:  {96, 172},
+	2:  {104, 176},
+	3:  {112, 182},
+	4:  {118, 208},
+	5:  {133, 232},
+	6:  {146, 242},
+	7:  {152, 248},
+	8:  {156, 252},
+	9:  {150, 246},
+	10: {142, 232},
+	11: {136, 210},
+	12: {125, 186},
+	13: {114, 172},
+	14: {100, 168},
+	15: {90, 164},
 }
 
 // MetalBonusByPosition is the per-position production bonus for metal mines.
@@ -471,7 +473,7 @@ var ShipStats = map[ShipType]ShipStat{
 	ShipBattleship:     {45000, 15000, 0, 60000, 200, 1000, 10000, 1500, 500},
 	ShipColonyShip:     {10000, 20000, 10000, 30000, 100, 50, 2500, 7500, 1000},
 	ShipRecycler:       {10000, 6000, 2000, 16000, 10, 1, 2000, 20000, 300},
-	ShipEspionageProbe: {0, 1000, 0, 1000, 1, 1, 100_000_000, 5, 1},
+	ShipEspionageProbe: {0, 1000, 0, 1000, 0, 0, 100_000_000, 5, 1},
 	ShipBomber:         {50000, 25000, 15000, 75000, 500, 1000, 4000, 500, 700},
 	ShipDestroyer:      {60000, 50000, 15000, 110000, 500, 2000, 5000, 2000, 1000},
 	ShipBattlecruiser:  {30000, 40000, 15000, 70000, 400, 700, 10000, 750, 250},

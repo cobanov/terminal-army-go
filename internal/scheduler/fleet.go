@@ -489,6 +489,20 @@ func (s *Scheduler) resolveDeploy(ctx context.Context, qtx *store.Queries, f *st
 	return qtx.DeleteFleet(ctx, f.ID)
 }
 
+// colonizeRejection returns a player-facing reason string if colonization is
+// not allowed at the given Astrophysics level, or "" if it is. The position
+// band is checked before the count so the message is the most specific one.
+func colonizeRejection(astroLevel, planetCount, position int) string {
+	if !game.CanColonizePosition(astroLevel, position) {
+		low, high := game.ColonizablePositionRange(astroLevel)
+		return fmt.Sprintf("Astrophysics level %d only allows colonizing positions %d-%d.", astroLevel, low, high)
+	}
+	if planetCount >= game.MaxPlanets(astroLevel) {
+		return fmt.Sprintf("Planet limit reached (%d/%d). Research Astrophysics to expand.", planetCount, game.MaxPlanets(astroLevel))
+	}
+	return ""
+}
+
 // ------ colonize -----------------------------------------------------------
 //
 // Colonize: if the target slot is empty, consume one colony ship from the
@@ -516,6 +530,27 @@ func (s *Scheduler) resolveColonize(ctx context.Context, qtx *store.Queries, f *
 			"Colonization failed",
 			fmt.Sprintf("Slot %d:%d:%d is already occupied.", f.TargetGalaxy, f.TargetSystem, f.TargetPosition),
 			"colonization",
+		); mErr != nil {
+			return mErr
+		}
+		return s.markAttackReturning(ctx, qtx, f)
+	}
+
+	// Enforce Astrophysics rules: the colonizable position band and the
+	// planet-count cap both scale with the owner's Astrophysics level. Failing
+	// either bounces the fleet home with the colony ship intact.
+	researches, err := qtx.ListResearchesForUser(ctx, f.OwnerID)
+	if err != nil {
+		return err
+	}
+	astro := researches[string(game.TechAstrophysics)]
+	owned, err := qtx.ListPlanetsByOwner(ctx, f.OwnerID)
+	if err != nil {
+		return err
+	}
+	if reason := colonizeRejection(astro, len(owned), f.TargetPosition); reason != "" {
+		if _, mErr := qtx.InsertMessage(ctx, nil, f.OwnerID,
+			"Colonization failed", reason, "colonization",
 		); mErr != nil {
 			return mErr
 		}
