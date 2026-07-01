@@ -53,6 +53,11 @@ func indexHandler(app *svc.App) http.HandlerFunc {
 		if rows, err := app.Leaderboard.Top(r.Context(), 5); err == nil {
 			view.Leaderboard = rows
 		}
+		// Live server counters power the landing "liveness" strip. Non-fatal:
+		// the page renders fine without them.
+		if s, err := app.Stats.Overview(r.Context()); err == nil {
+			view.Stats = s
+		}
 		writePage(w, "index", view)
 	}
 }
