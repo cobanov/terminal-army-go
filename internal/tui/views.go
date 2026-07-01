@@ -76,11 +76,12 @@ func buildingRows(items []svc.BuildingView, upgradeCmd string) []rowLine {
 		cost := fmt.Sprintf("%7s %7s %7s",
 			formatCompact(it.NextCost.Metal), formatCompact(it.NextCost.Crystal), formatCompact(it.NextCost.Deuterium))
 		cost = st.Render(cost)
-		tail := stMuted().Render(formatRemaining(time.Duration(it.BuildSeconds) * time.Second))
+		// Fixed-width time column keeps the action column aligned across rows.
+		tail := stMuted().Render(fmt.Sprintf("%7s", formatRemaining(time.Duration(it.BuildSeconds)*time.Second)))
 		var action, cmd string
 		switch {
 		case it.Locked:
-			action = stBad().Render("🔒 " + it.LockedReason)
+			action = stBad().Render("🔒 " + compactLockReason(it.LockedReason))
 		case it.Affordable:
 			action = stButton(true).Render(" build ")
 			cmd = upgradeCmd + " " + it.Key
@@ -107,7 +108,7 @@ func unitRows(items []svc.UnitView, buildCmd string) []rowLine {
 		var action, cmd string
 		switch {
 		case it.Locked:
-			action = stBad().Render("🔒 " + it.LockedReason)
+			action = stBad().Render("🔒 " + compactLockReason(it.LockedReason))
 		default:
 			action = stMuted().Render(fmt.Sprintf("build %d", it.BuildableNow))
 			cmd = fmt.Sprintf("%s %s 1", buildCmd, it.Key)
@@ -137,7 +138,7 @@ func researchRows(v *svc.ResearchView) []rowLine {
 			formatCompact(n.NextCost.Metal), formatCompact(n.NextCost.Crystal), formatCompact(n.NextCost.Deuterium)))
 		var action, cmd string
 		if n.Locked {
-			action = stBad().Render("🔒 " + n.LockedReason)
+			action = stBad().Render("🔒 " + compactLockReason(n.LockedReason))
 		} else {
 			action = stButton(n.Affordable).Render(" research ")
 			cmd = "/research " + n.Key
@@ -269,6 +270,17 @@ func overviewLines(p *svc.Planet, prod *svc.ProductionReport, queues []svc.Queue
 		lines[i] = clampLine(lines[i], width)
 	}
 	return lines
+}
+
+// compactLockReason shortens the server's prerequisite text so a locked row
+// stays on one tidy line: "deuterium_synthesizer level 5 required, energy level
+// 3 required" -> "deuterium synthesizer 5 · energy 3".
+func compactLockReason(reason string) string {
+	r := strings.ReplaceAll(reason, " level ", " ")
+	r = strings.ReplaceAll(r, " required", "")
+	r = strings.ReplaceAll(r, ", ", " · ")
+	r = strings.ReplaceAll(r, "_", " ")
+	return r
 }
 
 func energyText(balance int) string {

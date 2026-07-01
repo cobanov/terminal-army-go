@@ -76,10 +76,54 @@ func (m appModel) layout() layout {
 	l.footerTop = bodyTop + l.bodyH
 	l.tableTop = bodyTop
 	l.inputTop = bodyTop + l.bodyH - 1
-	l.histH = clampInt(l.bodyH-8, 0, 5)
-	l.histTop = l.inputTop - l.histH
-	l.tableH = max(1, l.histTop-l.tableTop)
+	// Content-aware split: the table takes only as many rows as its content
+	// needs, then a separator + the command log fill the rest down to the
+	// prompt. This keeps a short table from leaving a dead void above input.
+	maxTable := max(1, l.bodyH-3) // reserve: separator + >=1 log line + input
+	l.tableH = clampInt(m.centerNaturalHeight(), 1, maxTable)
+	l.histTop = l.tableTop + l.tableH + 1 // +1 for the separator rule
+	l.histH = max(1, l.bodyH-l.tableH-2)  // minus separator and input rows
 	return l
+}
+
+// centerNaturalHeight is the number of rows the active view would render before
+// padding: title (+ header) + data rows. Used to size the table region so the
+// command log can claim the leftover vertical space.
+func (m appModel) centerNaturalHeight() int {
+	d := m.data
+	withHeader := func(n int) int { return 2 + max(1, n) } // title + header + rows
+	noHeader := func(n int) int { return 1 + max(1, n) }   // title + rows
+	switch m.active {
+	case viewOverview:
+		return len(overviewLines(m.curPlanet(), d.prod, d.queues, 80))
+	case viewBuildings, viewFacilities:
+		return withHeader(len(d.buildings))
+	case viewResearch:
+		n := 0
+		if d.research != nil {
+			n = len(d.research.Nodes)
+		}
+		return withHeader(n)
+	case viewShipyard, viewDefense:
+		return withHeader(len(d.units))
+	case viewFleet:
+		return withHeader(len(d.fleets))
+	case viewGalaxy:
+		n := 0
+		if d.system != nil {
+			n = len(d.system.Planets)
+		}
+		return withHeader(n)
+	case viewMessages:
+		return noHeader(len(d.messages))
+	case viewReports:
+		return noHeader(len(d.reports))
+	case viewAlliance:
+		return noHeader(len(d.alliances))
+	case viewRanking:
+		return withHeader(len(d.ranks))
+	}
+	return 1
 }
 
 func (m appModel) View() string {
@@ -132,16 +176,28 @@ func (m appModel) View() string {
 	return clampBlock(strings.Join(out, "\n"), m.width, m.height)
 }
 
-// centerLower renders the history/suggestion strip plus the command input line.
+// centerLower renders the console zone below the table: a separator rule, the
+// command log (or autocomplete suggestions) filling the space, and the input
+// line anchored at the bottom. Always returns exactly 1 + histH + 1 rows.
 func (m appModel) centerLower(l layout) []string {
-	var lines []string
-	if l.histH > 0 {
-		if len(m.sugg) > 0 {
-			lines = append(lines, m.suggLines(l.centerW, l.histH)...)
-		} else {
-			lines = append(lines, m.logLines(l.centerW, l.histH)...)
-		}
+	lines := make([]string, 0, l.histH+2)
+	lines = append(lines, stFaint().Render(strings.Repeat("─", max(1, l.centerW))))
+
+	var body []string
+	if len(m.sugg) > 0 {
+		body = m.suggLines(l.centerW, l.histH)
+	} else {
+		body = m.logLines(l.centerW, l.histH)
 	}
+	// Bottom-align the log so the newest output sits just above the prompt.
+	for len(body) < l.histH {
+		body = append([]string{""}, body...)
+	}
+	if len(body) > l.histH {
+		body = body[len(body)-l.histH:]
+	}
+	lines = append(lines, body...)
+
 	inp := m.input
 	inp.Width = max(4, l.centerW-len(inp.Prompt)-1)
 	prompt := padLine(inp.View(), l.centerW)
@@ -276,10 +332,11 @@ func makeRegionFromLines(title string, body []string, width, height int) region 
 }
 
 func buildingsHeader() string {
-	return stMuted().Render(fmt.Sprintf("%-22s %-4s %7s %7s %7s", "building", "lvl", "metal", "crystal", "deut"))
+	// Spacing mirrors buildingRows exactly so the header lines up with the data.
+	return stMuted().Render(fmt.Sprintf("%-22s %-4s  %7s %7s %7s  %7s", "building", "lvl", "metal", "crystal", "deut", "time"))
 }
 func unitsHeader() string {
-	return stMuted().Render(fmt.Sprintf("%-20s %-11s %7s %7s %7s", "unit", "owned", "metal", "crystal", "deut"))
+	return stMuted().Render(fmt.Sprintf("%-20s %-11s  %7s %7s %7s", "unit", "owned", "metal", "crystal", "deut"))
 }
 func researchHeader(v *svc.ResearchView) string {
 	lab := 0
