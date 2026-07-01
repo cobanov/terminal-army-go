@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/cobanov/terminal-army-go/internal/auth"
 	"github.com/cobanov/terminal-army-go/internal/svc"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // planetViewHandler adapts a per-planet read-model method (buildings,
@@ -44,6 +46,19 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// writeServerError logs the underlying error server-side (with the request ID
+// for correlation) and returns a generic 500 to the client, so internal
+// details like driver/SQL error text never leak to callers.
+func writeServerError(w http.ResponseWriter, r *http.Request, err error) {
+	slog.Error("request failed",
+		"err", err,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"request_id", middleware.GetReqID(r.Context()),
+	)
+	writeError(w, http.StatusInternalServerError, "internal error")
 }
 
 func authRegister(app *svc.App) http.HandlerFunc {
@@ -99,7 +114,7 @@ func deviceStart(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		out, err := app.Auth.StartDeviceAuth(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, out)
@@ -142,7 +157,7 @@ func listUniverses(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		us, err := app.Universe.List(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, us)
@@ -172,7 +187,7 @@ func listPlanets(app *svc.App) http.HandlerFunc {
 		uid := auth.UserIDFromContext(r.Context())
 		ps, err := app.Planet.ListByUser(r.Context(), uid)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, ps)
@@ -313,7 +328,7 @@ func listResearch(app *svc.App) http.HandlerFunc {
 		uid := auth.UserIDFromContext(r.Context())
 		rs, err := app.Research.List(r.Context(), uid)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, rs)
@@ -376,7 +391,7 @@ func listFleet(app *svc.App) http.HandlerFunc {
 		uid := auth.UserIDFromContext(r.Context())
 		fs, err := app.Fleet.List(r.Context(), uid)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, fs)
@@ -401,7 +416,7 @@ func listMessages(app *svc.App) http.HandlerFunc {
 		uid := auth.UserIDFromContext(r.Context())
 		ms, err := app.Messages.List(r.Context(), uid)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, ms)
@@ -458,7 +473,7 @@ func listReports(app *svc.App) http.HandlerFunc {
 		uid := auth.UserIDFromContext(r.Context())
 		rs, err := app.Reports.List(r.Context(), uid)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, rs)
@@ -482,7 +497,7 @@ func listAlliances(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		as, err := app.Alliance.List(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, as)
@@ -550,7 +565,7 @@ func leaderboardHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		lb, err := app.Leaderboard.Top(r.Context(), 100)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, lb)
@@ -561,7 +576,7 @@ func statsHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s, err := app.Stats.Overview(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, s)
@@ -572,7 +587,7 @@ func publicStatsHandler(app *svc.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s, err := app.Stats.PublicOverview(r.Context())
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeServerError(w, r, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, s)

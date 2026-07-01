@@ -22,7 +22,7 @@ func adminDashboardHandler(app *svc.App) http.HandlerFunc {
 
 		stats, err := app.Stats.Overview(r.Context())
 		if err != nil {
-			view.Error = "failed to load stats: " + err.Error()
+			view.Error = "could not load stats"
 			writePage(w, "admin_dashboard", view)
 			return
 		}
@@ -72,7 +72,7 @@ func renderAdminUsers(w http.ResponseWriter, r *http.Request, app *svc.App, view
 	limit := adminPageSize
 	users, err := app.Queries.ListUsers(r.Context(), limit+1, offset)
 	if err != nil {
-		view.Error = "failed to load users: " + err.Error()
+		view.Error = "could not load users"
 		writePage(w, "admin_users", view)
 		return
 	}
@@ -146,7 +146,7 @@ func handleAdminUserPost(r *http.Request, app *svc.App) string {
 	}
 
 	if err := app.Queries.SetUserRole(r.Context(), uid, role); err != nil {
-		return "role update failed: " + err.Error()
+		return "role update failed"
 	}
 	return ""
 }

@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -223,7 +224,7 @@ func allianceListHandler(app *svc.App) http.HandlerFunc {
 
 		list, err := app.Alliance.List(r.Context())
 		if err != nil {
-			view.Error = "failed to load alliances: " + err.Error()
+			view.Error = "could not load alliances"
 			writePage(w, "alliance_list", view)
 			return
 		}
@@ -248,7 +249,7 @@ func allianceListHandler(app *svc.App) http.HandlerFunc {
 
 		created, err := app.Alliance.Create(r.Context(), user.ID, tag, name, desc)
 		if err != nil {
-			view.Error = err.Error()
+			view.Error = "could not create alliance; check the tag and name and try again"
 			writePage(w, "alliance_list", view)
 			return
 		}
@@ -279,7 +280,7 @@ func allianceDetailHandler(app *svc.App) http.HandlerFunc {
 				http.NotFound(w, r)
 				return
 			}
-			view.Error = "failed to load alliance: " + err.Error()
+			view.Error = "could not load alliance"
 			writePage(w, "alliance_detail", view)
 			return
 		}
@@ -310,7 +311,7 @@ func allianceJoinHandler(app *svc.App) http.HandlerFunc {
 			return
 		}
 		if err := app.Alliance.Join(r.Context(), user.UserID, id); err != nil {
-			renderError(w, r, app, "alliance_detail", "join failed: "+err.Error(), id)
+			renderError(w, r, app, "alliance_detail", "could not join alliance", id)
 			return
 		}
 		http.Redirect(w, r, "/alliance/"+strconv.FormatInt(id, 10), http.StatusSeeOther)
@@ -335,7 +336,7 @@ func allianceLeaveHandler(app *svc.App) http.HandlerFunc {
 			return
 		}
 		if err := app.Alliance.Leave(r.Context(), user.UserID, id); err != nil {
-			renderError(w, r, app, "alliance_detail", "leave failed: "+err.Error(), id)
+			renderError(w, r, app, "alliance_detail", "could not leave alliance", id)
 			return
 		}
 		http.Redirect(w, r, "/alliance", http.StatusSeeOther)
@@ -388,7 +389,7 @@ func friendlyAuthError(err error) string {
 	case errors.Is(err, svc.ErrSessionExpired):
 		return "session expired, please log in again"
 	default:
-		return err.Error()
+		return "could not complete that request, please try again"
 	}
 }
 
@@ -415,6 +416,7 @@ func renderError(w http.ResponseWriter, r *http.Request, app *svc.App, page stri
 func writePage(w http.ResponseWriter, page string, data viewData) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := render(w, page, data); err != nil {
-		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
+		slog.Error("template render failed", "page", page, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
 }
