@@ -83,5 +83,6 @@ func (s *StatsService) PublicOverview(ctx context.Context) (*PublicServerStats, 
 		Active24h:   active,
 		Full:        s.app.Cfg.ServerMaxUsers > 0 && registered >= s.app.Cfg.ServerMaxUsers,
 		Version:     version.Version,
+		BuildDate:   version.Date,
 	}, nil
 }

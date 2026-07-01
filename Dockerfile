@@ -25,10 +25,12 @@ COPY . .
 # optional so the default `docker build .` still works.
 ARG VERSION=dev
 ARG COMMIT=unknown
+ARG DATE=unknown
 RUN go build -trimpath \
         -ldflags="-s -w \
           -X github.com/cobanov/terminal-army-go/internal/version.Version=${VERSION} \
-          -X github.com/cobanov/terminal-army-go/internal/version.Commit=${COMMIT}" \
+          -X github.com/cobanov/terminal-army-go/internal/version.Commit=${COMMIT} \
+          -X github.com/cobanov/terminal-army-go/internal/version.Date=${DATE}" \
         -o /out/tarmy ./cmd/tarmy
 
 # ---- runtime stage ------------------------------------------------------

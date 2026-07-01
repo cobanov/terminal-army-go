@@ -11,6 +11,10 @@
 {{if .Flash}}<div class="ok-banner">{{.Flash}}</div>{{end}}
 {{if .Error}}<div class="err">{{.Error}}</div>{{end}}
 {{template "content" .}}
+<footer class="site-version">
+  terminal.army <b>{{.Version}}</b> &middot; last updated {{.BuildDate}}
+  <span class="version-note">run <code>tarmy update</code> to match the server</span>
+</footer>
 </div>
 </body>
 </html>{{end}}

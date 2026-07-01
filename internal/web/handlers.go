@@ -9,8 +9,21 @@ import (
 	"time"
 
 	"github.com/cobanov/terminal-army-go/internal/svc"
+	"github.com/cobanov/terminal-army-go/internal/version"
 	"github.com/go-chi/chi/v5"
 )
+
+// displayBuildDate renders the ldflags-injected build timestamp for humans.
+// Falls back to the raw value (or "unknown") when it isn't RFC3339.
+func displayBuildDate(raw string) string {
+	if raw == "" || raw == "unknown" {
+		return "unknown"
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t.Format("2006-01-02 15:04 UTC")
+	}
+	return raw
+}
 
 // baseView builds the layout envelope every handler shares: title, current
 // user (if any), CSRF token, public URL, current time. Page-specific fields
@@ -22,6 +35,8 @@ func baseView(app *svc.App, r *http.Request, title string) viewData {
 		PublicURL:  app.Cfg.PublicURL,
 		Now:        time.Now().UTC(),
 		ShellClass: "dash-shell",
+		Version:    version.Version,
+		BuildDate:  displayBuildDate(version.Date),
 	}
 	if s := sessionFromCtx(r.Context()); s != nil {
 		v.User = s.User

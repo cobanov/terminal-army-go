@@ -17,6 +17,7 @@ import (
 
 	"github.com/cobanov/terminal-army-go/internal/svc"
 	"github.com/cobanov/terminal-army-go/internal/tui/client"
+	"github.com/cobanov/terminal-army-go/internal/version"
 )
 
 const DefaultServerURL = "https://terminal.army"
@@ -41,7 +42,11 @@ func RunREPL(ctx context.Context, serverURL string, logout bool) error {
 	if err := r.ensurePlanets(ctx); err != nil {
 		return err
 	}
+	r.versionWarning = serverVersionWarning(ctx, c)
 	r.printf("terminal.army %s\n", c.BaseURL())
+	if r.versionWarning != "" {
+		r.printf("!! %s\n", r.versionWarning)
+	}
 	r.println("type /help for commands, /q to quit")
 	if err := r.printPlanet(ctx); err != nil {
 		return err
@@ -50,11 +55,30 @@ func RunREPL(ctx context.Context, serverURL string, logout bool) error {
 }
 
 type replSession struct {
-	client       *client.Client
-	user         *svc.User
-	out          io.Writer
-	planets      []svc.Planet
-	currentIndex int
+	client         *client.Client
+	user           *svc.User
+	out            io.Writer
+	planets        []svc.Planet
+	currentIndex   int
+	versionWarning string // non-empty when client/server build versions differ
+}
+
+// serverVersionWarning returns a player-facing warning when the client binary's
+// version differs from the server's. Version consistency matters: a stale
+// client can issue commands the server no longer accepts or interprets
+// differently. Dev builds ("dev") skip the check to avoid noise.
+func serverVersionWarning(ctx context.Context, c *client.Client) string {
+	if version.Version == "" || version.Version == "dev" {
+		return ""
+	}
+	stats, err := withTimeout(ctx, func(ctx context.Context) (*svc.PublicServerStats, error) {
+		return c.PublicStats(ctx)
+	})
+	if err != nil || stats == nil || stats.Version == "" || stats.Version == version.Version {
+		return ""
+	}
+	return fmt.Sprintf("version mismatch — client %s, server %s. Run `tarmy update` to match, or you may issue invalid commands.",
+		version.Version, stats.Version)
 }
 
 func (r *replSession) writer() io.Writer {

@@ -36,6 +36,7 @@ func RunConsole(ctx context.Context, serverURL string, logout bool) error {
 	if err := r.ensurePlanets(ctx); err != nil {
 		return err
 	}
+	r.versionWarning = serverVersionWarning(ctx, c)
 	p := tea.NewProgram(newAppModel(ctx, r),
 		tea.WithContext(ctx),
 		tea.WithAltScreen(),
@@ -114,7 +115,7 @@ func newAppModel(ctx context.Context, r *replSession) appModel {
 	ti.Placeholder = "type / for commands, Tab to autocomplete"
 	ti.CharLimit = 512
 	ti.Focus()
-	return appModel{
+	m := appModel{
 		ctx:     ctx,
 		session: r,
 		active:  viewOverview,
@@ -126,6 +127,11 @@ func newAppModel(ctx context.Context, r *replSession) appModel {
 		cmdAt:   -1,
 		log:     []string{stMuted().Render("Welcome to terminal.army. Click the menu or type a /command.")},
 	}
+	if r.versionWarning != "" {
+		m.log = append([]string{stGold().Render("⚠ " + r.versionWarning)}, m.log...)
+		m.status = "version mismatch — run tarmy update"
+	}
+	return m
 }
 
 func (m appModel) Init() tea.Cmd {

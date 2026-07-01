@@ -260,6 +260,7 @@ type PublicServerStats struct {
 	Active24h   int    `json:"active_24h"`
 	Full        bool   `json:"full"`
 	Version     string `json:"version"`
+	BuildDate   string `json:"build_date,omitempty"`
 }
 
 // SystemPlanetView is one slot in a galaxy system view.

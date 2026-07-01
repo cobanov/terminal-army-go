@@ -467,3 +467,16 @@ td form button {
   .logo { font-size: 0.72rem; }
   .tagline { letter-spacing: 0.12em; }
 }
+
+/* Build/version footer — shown on every page so players can confirm they are
+   on the same version as the server. */
+.site-version {
+  margin-top: 2rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted, #8a8f98);
+}
+.site-version b { color: var(--accent, #ffb74d); }
+.site-version .version-note { display: block; margin-top: 0.15rem; opacity: 0.7; }

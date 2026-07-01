@@ -425,3 +425,15 @@ func (c *Client) Stats(ctx context.Context) (*svc.StatsOverview, error) {
 	}
 	return out, nil
 }
+
+// PublicStats returns the unauthenticated lobby stats, including the server's
+// build version. Used at startup to warn when the client and server versions
+// differ (a mismatch can make the player issue commands the server rejects or
+// interprets differently).
+func (c *Client) PublicStats(ctx context.Context) (*svc.PublicServerStats, error) {
+	out := &svc.PublicServerStats{}
+	if err := c.do(ctx, "GET", "/stats", nil, out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}

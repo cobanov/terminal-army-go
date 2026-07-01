@@ -26,6 +26,8 @@ type viewData struct {
 	PublicURL  string
 	Now        time.Time
 	ShellClass string
+	Version    string
+	BuildDate  string
 
 	// page-specific payloads
 	Form        map[string]string
