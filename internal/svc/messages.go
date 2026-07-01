@@ -34,6 +34,9 @@ func (s *MessagesService) Send(ctx context.Context, senderID int64, recipientUse
 	if recipientUsername == "" || body == "" {
 		return nil, errors.New("recipient and message body are required")
 	}
+	if len(body) > 2000 {
+		return nil, errors.New("message body must be at most 2000 characters")
+	}
 	recipient, err := s.app.Queries.GetUserByUsername(ctx, recipientUsername)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {

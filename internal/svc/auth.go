@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -96,7 +97,9 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (*Au
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			// Spend bcrypt time anyway to avoid leaking which usernames exist.
-			_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
+			// Compare against a hash generated at the SAME cost as real hashes
+			// so unknown-username timing matches known-username timing.
+			_ = bcrypt.CompareHashAndPassword(s.timingDummyHash(), []byte(password))
 			return nil, ErrInvalidLogin
 		}
 		return nil, err
@@ -272,10 +275,30 @@ func mapUser(u *store.User) *User {
 	}
 }
 
-// dummyHash is a precomputed bcrypt hash used to keep failed-login timing
-// roughly equal to successful-login timing. Value is the bcrypt of an empty
-// string at cost 10. It is never matched against a real password.
+// dummyHash is a precomputed bcrypt hash (cost 10) used as a fallback for the
+// login timing-equalizer. It is never matched against a real password.
 var dummyHash = []byte("$2a$10$7EqJtq98hPqEX7fNZaFWoO.7AYqgRZpC8rGjJUMSh2RXc3XSXfh.W")
+
+// dummyHashOnce lazily builds a timing-equalizer hash at the configured bcrypt
+// cost so an unknown-username login spends the same time as a known one.
+var (
+	dummyHashOnce   sync.Once
+	dummyHashAtCost []byte
+)
+
+// timingDummyHash returns a bcrypt hash generated at the configured cost,
+// computed once per process. Falls back to the cost-10 constant on error.
+func (s *AuthService) timingDummyHash() []byte {
+	dummyHashOnce.Do(func() {
+		h, err := bcrypt.GenerateFromPassword([]byte("timing-equalizer"), s.app.Cfg.BcryptCost)
+		if err != nil {
+			dummyHashAtCost = dummyHash
+			return
+		}
+		dummyHashAtCost = h
+	})
+	return dummyHashAtCost
+}
 
 func newSessionCode() (string, error) {
 	buf := make([]byte, 16)
