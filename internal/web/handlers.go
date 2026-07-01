@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -50,14 +51,14 @@ func signupHandler(app *svc.App) http.HandlerFunc {
 		code := authCodeFromRequest(r)
 		view.Form = map[string]string{"code": code}
 
-		// Already logged in: skip the form and go straight to alliances.
+		// Already logged in: never bind a device code silently on GET. Send
+		// the user to the explicit, CSRF-protected approval page instead
+		// (prevents one-click device-code phishing). Without a code, go to
+		// the alliance lobby.
 		if view.User != nil {
 			if code != "" {
-				if tok, err := sessionTokenFromRequest(r); err == nil && app.Auth.BindDeviceAuth(r.Context(), code, tok, view.User.ID) {
-					view.Flash = "authentication complete"
-					writePage(w, "terminal_success", view)
-					return
-				}
+				http.Redirect(w, r, "/device/approve?code="+url.QueryEscape(code), http.StatusSeeOther)
+				return
 			}
 			http.Redirect(w, r, "/alliance", http.StatusSeeOther)
 			return
@@ -87,15 +88,11 @@ func signupHandler(app *svc.App) http.HandlerFunc {
 		}
 
 		setSessionCookie(w, r, res.Token)
+		// Confirm device-code linking on a dedicated CSRF-protected page rather
+		// than binding as a side effect of signup, so a "?code=" planted by a
+		// third party can never be linked without an explicit approval click.
 		if code != "" {
-			if !app.Auth.BindDeviceAuth(r.Context(), code, res.Token, res.User.ID) {
-				view.Error = "auth code invalid or expired; restart tarmy in terminal"
-				writePage(w, "signup", view)
-				return
-			}
-			view.User = res.User
-			view.Flash = "authentication complete"
-			writePage(w, "terminal_success", view)
+			http.Redirect(w, r, "/device/approve?code="+url.QueryEscape(code), http.StatusSeeOther)
 			return
 		}
 		http.Redirect(w, r, safeRedirect(r, "/alliance"), http.StatusSeeOther)
@@ -114,11 +111,8 @@ func loginHandler(app *svc.App) http.HandlerFunc {
 
 		if view.User != nil {
 			if code != "" {
-				if tok, err := sessionTokenFromRequest(r); err == nil && app.Auth.BindDeviceAuth(r.Context(), code, tok, view.User.ID) {
-					view.Flash = "authentication complete"
-					writePage(w, "terminal_success", view)
-					return
-				}
+				http.Redirect(w, r, "/device/approve?code="+url.QueryEscape(code), http.StatusSeeOther)
+				return
 			}
 			http.Redirect(w, r, safeRedirect(r, "/alliance"), http.StatusSeeOther)
 			return
@@ -148,17 +142,54 @@ func loginHandler(app *svc.App) http.HandlerFunc {
 
 		setSessionCookie(w, r, res.Token)
 		if code != "" {
-			if !app.Auth.BindDeviceAuth(r.Context(), code, res.Token, res.User.ID) {
-				view.Error = "auth code invalid or expired; restart tarmy in terminal"
-				writePage(w, "login", view)
-				return
-			}
-			view.User = res.User
-			view.Flash = "authentication complete"
-			writePage(w, "terminal_success", view)
+			http.Redirect(w, r, "/device/approve?code="+url.QueryEscape(code), http.StatusSeeOther)
 			return
 		}
 		http.Redirect(w, r, safeRedirect(r, "/alliance"), http.StatusSeeOther)
+	}
+}
+
+// deviceApproveHandler is the single, explicit chokepoint for linking a CLI
+// device-auth code to the current account. GET renders a confirmation page
+// showing the code; POST (CSRF-checked) performs the bind. Binding never
+// happens as a side effect of a GET or of signup/login, which prevents a
+// third-party-planted "?code=" from hijacking a session with one click.
+func deviceApproveHandler(app *svc.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		view := baseView(app, r, "link device")
+		view.ShellClass = "login-shell"
+		code := authCodeFromRequest(r)
+
+		// Must be logged in to approve. Bounce through login, preserving the
+		// code so the user lands back here afterwards.
+		if view.User == nil {
+			http.Redirect(w, r, "/login?code="+url.QueryEscape(code), http.StatusSeeOther)
+			return
+		}
+		if code == "" {
+			http.Redirect(w, r, "/alliance", http.StatusSeeOther)
+			return
+		}
+		view.Form = map[string]string{"code": code}
+
+		if r.Method == http.MethodGet {
+			writePage(w, "device_approve", view)
+			return
+		}
+
+		if !checkCSRF(r) {
+			view.Error = "invalid form token, please retry"
+			writePage(w, "device_approve", view)
+			return
+		}
+		tok, err := sessionTokenFromRequest(r)
+		if err != nil || !app.Auth.BindDeviceAuth(r.Context(), code, tok, view.User.ID) {
+			view.Error = "auth code invalid or expired; restart tarmy in terminal"
+			writePage(w, "device_approve", view)
+			return
+		}
+		view.Flash = "authentication complete"
+		writePage(w, "terminal_success", view)
 	}
 }
 

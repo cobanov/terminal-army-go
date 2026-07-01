@@ -80,6 +80,7 @@ var pageTemplates = map[string]string{
 	"index":            "templates/index.html",
 	"signup":           "templates/signup.html",
 	"login":            "templates/login.html",
+	"device_approve":   "templates/device_approve.html",
 	"terminal_success": "templates/terminal_success.html",
 	"alliance_list":    "templates/alliance_list.html",
 	"alliance_detail":  "templates/alliance_detail.html",

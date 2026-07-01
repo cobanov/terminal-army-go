@@ -1,0 +1,28 @@
+{{define "content"}}
+<div class="login-container">
+  {{template "logo" .}}
+
+  <div class="info-banner">
+    <strong>Authorize a terminal session</strong> &middot;
+    a <code>tarmy</code> CLI is requesting access to your account.
+    Only approve this if you just started <code>tarmy</code> yourself.
+  </div>
+
+  {{if .Error}}<div class="error-banner">{{.Error}}</div>{{end}}
+
+  <div class="card">
+    <h2 class="card-title">Link device <small>code {{.Form.code}}</small></h2>
+    <p>Approving links the terminal that generated code
+      <code>{{.Form.code}}</code> to <strong>{{.User.Username}}</strong>.</p>
+    <form method="post" action="/device/approve?code={{.Form.code}}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="code" value="{{.Form.code}}">
+      <button type="submit">Approve &amp; link &rarr;</button>
+    </form>
+  </div>
+
+  <p class="switch">
+    Didn't start this? <a href="/alliance">Cancel</a> and ignore the request.
+  </p>
+</div>
+{{end}}

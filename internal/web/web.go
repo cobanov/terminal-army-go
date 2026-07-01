@@ -56,6 +56,11 @@ func Mount(r chi.Router, app *svc.App) {
 
 		r.Post("/logout", logoutHandler(app))
 
+		// Explicit, CSRF-protected device-code approval. Both methods share a
+		// handler: GET shows the confirmation, POST performs the bind.
+		r.Get("/device/approve", deviceApproveHandler(app))
+		r.With(authThrottle.limitPOST).Post("/device/approve", deviceApproveHandler(app))
+
 		r.Route("/alliance", func(r chi.Router) {
 			r.Use(requireLogin)
 			r.Get("/", allianceListHandler(app))
