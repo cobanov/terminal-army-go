@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cobanov/terminal-army-go/internal/svc"
 )
 
@@ -95,7 +96,7 @@ func (m appModel) centerNaturalHeight() int {
 	noHeader := func(n int) int { return 1 + max(1, n) }   // title + rows
 	switch m.active {
 	case viewOverview:
-		return len(overviewLines(m.curPlanet(), d.prod, d.queues, 80))
+		return 1 + len(overviewLines(m.curPlanet(), d.prod, d.queues, 80)) // +1 for the title line
 	case viewBuildings, viewFacilities:
 		return withHeader(len(d.buildings))
 	case viewResearch:
@@ -236,30 +237,110 @@ func (m appModel) suggLines(width, height int) []string {
 	return out
 }
 
+// renderTopBar draws the two-line live HUD: identity + status cluster on line
+// one, resource meters + energy on line two. Resource counters are projected
+// forward from the last sync so they visibly climb between refreshes.
 func (m appModel) renderTopBar(width int) string {
-	p := m.curPlanet()
-	name, coords, res := stMuted().Render("no planet"), "", ""
-	if p != nil {
-		name = stBrand().Render(strings.ToUpper(p.Name))
-		coords = stMuted().Render(fmt.Sprintf("%d:%d:%d", p.Galaxy, p.System, p.Position))
-		mRate, cRate, dRate := "", "", ""
-		bal := p.EnergyProduced - p.EnergyUsed
-		if m.data.prod != nil && m.data.loaded == viewOverview {
-			mRate = stMuted().Render(fmt.Sprintf("+%.0f", m.data.prod.MetalPerHour))
-			cRate = stMuted().Render(fmt.Sprintf("+%.0f", m.data.prod.CrystalPerHour))
-			dRate = stMuted().Render(fmt.Sprintf("+%.0f", m.data.prod.DeuteriumPerHour))
-		}
-		res = fmt.Sprintf("M %s %s   C %s %s   D %s %s   E %s",
-			stGold().Render(formatCompact(p.Metal)), mRate,
-			stCyan().Render(formatCompact(p.Crystal)), cRate,
-			stViolet().Render(formatCompact(p.Deuterium)), dRate,
-			energyText(bal))
+	clock := stMuted().Render("⌚" + time.Now().Format("15:04:05"))
+	p := m.hudPlanet()
+	if p == nil {
+		line1 := fitColumns(width, stBrand().Render("tarmy")+stMuted().Render(" · no planet"), clock)
+		return line1 + "\n" + padLine(stMuted().Render(m.session.user.Username), width)
 	}
-	clock := time.Now().Format("15:04:05")
-	line1 := fitColumns(width, stBrand().Render("tarmy")+"  "+name+"  "+coords,
-		stMuted().Render(fmt.Sprintf("%d planets  ⌚%s", len(m.session.planets), clock)))
-	line2 := fitColumns(width, res, stMuted().Render(m.session.user.Username))
+	prod := m.rail.prod
+
+	// Live-project the pools so the numbers tick up between rail refreshes.
+	metal, crystal, deut := p.Metal, p.Crystal, p.Deuterium
+	if prod != nil && !m.rail.syncedAt.IsZero() {
+		el := time.Since(m.rail.syncedAt).Hours()
+		metal = projectRes(metal, prod.MetalPerHour, el, prod.StorageCapMetal)
+		crystal = projectRes(crystal, prod.CrystalPerHour, el, prod.StorageCapCrystal)
+		deut = projectRes(deut, prod.DeuteriumPerHour, el, prod.StorageCapDeuterium)
+	}
+
+	// Line 1: identity + right-side status cluster.
+	left1 := stBrand().Render("tarmy") + stMuted().Render(" · ") +
+		stBrand().Render(strings.ToUpper(p.Name)) + " " +
+		stGold().Render(fmt.Sprintf("%d:%d:%d", p.Galaxy, p.System, p.Position)) +
+		stMuted().Render(fmt.Sprintf(" · U#%d · fields %d/%d · temp %d/%d°C",
+			p.UniverseID, p.FieldsUsed, p.FieldsTotal, p.TempMin, p.TempMax))
+	unread := 0
+	for _, msg := range m.rail.messages {
+		if !msg.Read {
+			unread++
+		}
+	}
+	mail := stMuted().Render("✉ inbox")
+	if unread > 0 {
+		mail = stBad().Render(fmt.Sprintf("✉ %d unread", unread))
+	}
+	right1 := stGood().Render("●") + stMuted().Render(fmt.Sprintf(" %d online   ", m.rail.online)) +
+		mail + stMuted().Render("   ") + clock
+
+	// Line 2: resource meters + energy.
+	hasProd := prod != nil
+	capM, capC, capD := 0, 0, 0
+	rM, rC, rD := 0.0, 0.0, 0.0
+	if hasProd {
+		capM, capC, capD = prod.StorageCapMetal, prod.StorageCapCrystal, prod.StorageCapDeuterium
+		rM, rC, rD = prod.MetalPerHour, prod.CrystalPerHour, prod.DeuteriumPerHour
+	}
+	energy := "E " + energyText(p.EnergyProduced-p.EnergyUsed)
+	if hasProd {
+		energy = "E " + energyText(prod.EnergyProduced-prod.EnergyUsed) +
+			stMuted().Render(fmt.Sprintf(" (%.2fx)", prod.ProductionFactor))
+		if prod.ProductionFactor < 1 {
+			energy += "  " + stBad().Render("⚠ throttled")
+		}
+	}
+	left2 := resMeter("M", metal, capM, rM, hasProd, stGold()) + stMuted().Render("   ") +
+		resMeter("C", crystal, capC, rC, hasProd, stCyan()) + stMuted().Render("   ") +
+		resMeter("D", deut, capD, rD, hasProd, stViolet()) + stMuted().Render("   ") + energy
+
+	line1 := fitColumns(width, left1, right1)
+	line2 := fitColumns(width, left2, stMuted().Render(m.session.user.Username))
 	return line1 + "\n" + line2
+}
+
+// resMeter renders "M ▓▓▓░░ 396 +48/h": a label, an optional storage-fill bar,
+// the (projected) amount, and the per-hour rate when production is known.
+func resMeter(label string, cur float64, cap int, perHour float64, hasProd bool, style lipgloss.Style) string {
+	var b strings.Builder
+	b.WriteString(style.Bold(true).Render(label))
+	b.WriteString(" ")
+	if cap > 0 {
+		filled, empty := progressBar(cur/float64(cap), 5)
+		b.WriteString(style.Render(filled))
+		b.WriteString(stFaint().Render(empty))
+		b.WriteString(" ")
+	}
+	b.WriteString(style.Render(formatCompact(cur)))
+	if hasProd {
+		b.WriteString(stMuted().Render(fmt.Sprintf(" +%.0f/h", perHour)))
+	}
+	return b.String()
+}
+
+// projectRes advances a resource pool by perHour over elapsedH hours, clamped
+// to [0, cap] (cap ignored when <= 0).
+func projectRes(cur, perHour, elapsedH float64, cap int) float64 {
+	v := cur + perHour*elapsedH
+	if v < 0 {
+		v = 0
+	}
+	if cap > 0 && v > float64(cap) {
+		v = float64(cap)
+	}
+	return v
+}
+
+// hudPlanet prefers the rail's fresh snapshot (loaded on every view), then the
+// overview planet, then the session snapshot.
+func (m appModel) hudPlanet() *svc.Planet {
+	if m.rail.planet != nil {
+		return m.rail.planet
+	}
+	return m.curPlanet()
 }
 
 // curPlanet prefers the freshly-loaded overview planet, else the session's

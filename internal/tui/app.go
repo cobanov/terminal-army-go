@@ -412,6 +412,18 @@ func (m appModel) loadRail() tea.Cmd {
 		if ms, err := sess.client.ListMessages(ctx); err == nil {
 			rail.messages = ms
 		}
+		// HUD inputs: a fresh planet snapshot + production feed the top bar's
+		// meters/rates/energy and the live-projected counters on every view.
+		if pl, err := sess.client.GetPlanet(ctx, pid); err == nil {
+			rail.planet = pl
+		}
+		if pr, err := sess.client.GetProduction(ctx, pid); err == nil {
+			rail.prod = pr
+		}
+		if st, err := sess.client.PublicStats(ctx); err == nil {
+			rail.online = st.Online
+		}
+		rail.syncedAt = time.Now()
 		return railLoadedMsg{rail: rail}
 	}
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/x/ansi"
@@ -36,6 +37,35 @@ func TestRenderPreview(t *testing.T) {
 		log:  []string{"› /upgrade metal_mine", "queued metal_mine level 2, finishes 2:33AM"},
 	}
 	if out := os.Getenv("PREVIEW_OUT"); out != "" {
+		_ = os.WriteFile(out, []byte(ansi.Strip(m.View())), 0o644)
+	}
+}
+
+// TestRenderPreviewOverview renders the overview (globe + HUD top bar + build
+// queue progress bar). Writes to $PREVIEW_OUT_OVERVIEW when set.
+func TestRenderPreviewOverview(t *testing.T) {
+	planet := &svc.Planet{Code: "H4405", Name: "Homeworld", UniverseID: 1, Galaxy: 4, System: 440, Position: 8,
+		FieldsUsed: 88, FieldsTotal: 163, TempMin: -12, TempMax: 28,
+		Metal: 12840, Crystal: 8120, Deuterium: 1430, EnergyProduced: 260, EnergyUsed: 20}
+	prod := &svc.ProductionReport{MetalPerHour: 480, CrystalPerHour: 320, DeuteriumPerHour: 90,
+		EnergyProduced: 260, EnergyUsed: 20, ProductionFactor: 1,
+		StorageCapMetal: 20000, StorageCapCrystal: 20000, StorageCapDeuterium: 10000}
+	now := time.Now()
+	queues := []svc.QueueItem{{QueueType: "building", ItemKey: "metal_mine", TargetLevel: 12,
+		StartedAt: now.Add(-30 * time.Second), FinishedAt: now.Add(30 * time.Second)}}
+	sess := &replSession{planets: []svc.Planet{*planet}, currentIndex: 0, user: &svc.User{Username: "cobanov"}}
+	msgs := []svc.Message{{ID: 1, Subject: "Combat report", Read: false}, {ID: 2, Subject: "Welcome", Read: true}}
+	ti := textinput.New()
+	ti.Prompt = "tarmy> "
+	ti.Focus()
+	m := appModel{
+		session: sess, active: viewOverview, hover: -1, width: 140, height: 40,
+		input: ti, status: "ready", cmdAt: -1,
+		data: viewData{loaded: viewOverview, planet: planet, prod: prod, queues: queues},
+		rail: railData{queues: queues, messages: msgs, planet: planet, prod: prod, online: 3, syncedAt: now},
+		log:  []string{stMuted().Render("Welcome to terminal.army.")},
+	}
+	if out := os.Getenv("PREVIEW_OUT_OVERVIEW"); out != "" {
 		_ = os.WriteFile(out, []byte(ansi.Strip(m.View())), 0o644)
 	}
 }

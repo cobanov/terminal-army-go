@@ -1,6 +1,24 @@
 package tui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+// groupHeaderStyle gives each menu group its own accent so the sections read at
+// a glance.
+func groupHeaderStyle(title string) lipgloss.Style {
+	switch title {
+	case "EMPIRE":
+		return lipgloss.NewStyle().Foreground(colGold).Bold(true)
+	case "OPS":
+		return lipgloss.NewStyle().Foreground(colCyan).Bold(true)
+	case "SOCIAL":
+		return lipgloss.NewStyle().Foreground(colViolet).Bold(true)
+	}
+	return stHeader()
+}
 
 // viewID identifies the content shown in the center column.
 type viewID int
@@ -88,7 +106,7 @@ func renderMenu(active, hover viewID, width, height int) (string, []int) {
 		if gi > 0 {
 			add("", -1)
 		}
-		add(stHeader().Render(g.title), -1)
+		add(groupHeaderStyle(g.title).Render(g.title), -1)
 		for _, e := range g.entries {
 			marker := "  "
 			style := stText()

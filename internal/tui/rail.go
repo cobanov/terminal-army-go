@@ -7,11 +7,17 @@ import (
 	"github.com/cobanov/terminal-army-go/internal/svc"
 )
 
-// railData is the always-on live status shown in the right rail.
+// railData is the always-on live status shown in the right rail. It also
+// carries the HUD inputs (planet snapshot, production, online count, sync time)
+// so the top bar shows live figures on every view, not just the overview.
 type railData struct {
 	queues   []svc.QueueItem
 	fleets   []svc.Fleet
 	messages []svc.Message
+	planet   *svc.Planet
+	prod     *svc.ProductionReport
+	online   int
+	syncedAt time.Time
 }
 
 // renderRail builds the right-rail region. Section headers and rows are
@@ -32,7 +38,11 @@ func renderRail(d railData, width, height int) region {
 		if i >= 4 {
 			break
 		}
-		push(fmt.Sprintf(" %s %-12s %s", queueCode(q.QueueType), clampLine(queueLabel(q), 12), stGold().Render(formatRemaining(q.FinishedAt.Sub(now)))), "/queue")
+		filled, empty := progressBar(queueFraction(q, now), 5)
+		push(fmt.Sprintf(" %s %-8s %s%s %s",
+			queueCode(q.QueueType), clampLine(queueLabel(q), 8),
+			stGood().Render(filled), stFaint().Render(empty),
+			stGold().Render(formatRemaining(q.FinishedAt.Sub(now)))), "/queue")
 	}
 
 	push("", "")

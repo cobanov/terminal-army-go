@@ -120,6 +120,49 @@ func column(lines []string, width, height int) []string {
 	return out
 }
 
+// progressEighths is the 1/8-cell ramp for smooth sub-character bars.
+var progressEighths = []rune("▏▎▍▌▋▊▉█")
+
+// progressBar renders frac (0..1) across width cells at 1/8-cell precision,
+// returning the filled and empty runs separately so the caller can colour them
+// independently (e.g. green fill + faint track).
+func progressBar(frac float64, width int) (filled, empty string) {
+	if width < 1 {
+		return "", ""
+	}
+	if frac < 0 {
+		frac = 0
+	}
+	if frac > 1 {
+		frac = 1
+	}
+	units := frac * float64(width)
+	full := int(units)
+	if full > width {
+		full = width
+	}
+	var b strings.Builder
+	for i := 0; i < full; i++ {
+		b.WriteRune('█')
+	}
+	partial := 0
+	if full < width {
+		if rem := units - float64(full); rem > 0 {
+			idx := int(rem * 8)
+			if idx > 7 {
+				idx = 7
+			}
+			b.WriteRune(progressEighths[idx])
+			partial = 1
+		}
+	}
+	emptyN := width - full - partial
+	if emptyN < 0 {
+		emptyN = 0
+	}
+	return b.String(), strings.Repeat("░", emptyN)
+}
+
 // clampInt bounds v to [low, high].
 func clampInt(v, low, high int) int {
 	if v < low {
